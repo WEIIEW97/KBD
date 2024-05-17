@@ -116,6 +116,80 @@ def model_kbd_further_optimized(actual_depth, disp, focal, baseline, reg_lambda=
     return result
 
 
+def model_kbd_joint_linear(
+    actual_depth, disp, focal, baseline, disjoint_depth_range=(400, 600, 2700, 2900)
+):
+    """
+    Fit the KBD model to the data where actual_depth >= 500.
+
+    Parameters:
+    actual_depth (np.ndarray): The actual depth measurements.
+    disp (np.ndarray): The disparity measurements corresponding to the actual depths.
+    focal (float): Focal length of the camera.
+    baseline (float): Baseline distance between cameras.
+
+    Returns:
+    tuple: A tuple containing the linear model for the joint point and the optimization result.
+    """
+
+    def mfunc(params, disp, baseline, focal):
+        k, delta, b = params
+        return k * focal * baseline / (disp + delta) + b
+
+    def cost_func(params, disp, baseline, focal, actual_depth):
+        predictions = mfunc(params, disp, baseline, focal)
+        return np.mean((actual_depth - predictions) ** 2)
+
+    # Filter data where actual_depth >= 500
+    mask = np.where((actual_depth >= disjoint_depth_range[0]) & (actual_depth <= disjoint_depth_range[3]))
+    filtered_disp = disp[mask]
+    filtered_depth = actual_depth[mask]
+
+    # Fit the model on the filtered data
+    initial_params = [1.0, 0.01, 10]  # Reasonable starting values
+    result = minimize(
+        cost_func,
+        initial_params,
+        args=(filtered_disp, baseline, focal, filtered_depth),
+        method="Nelder-Mead",
+    )
+
+    # find the estimiated disparity to depth range within [500, 600]
+    fb = focal * baseline
+    k_, delta_, b_ = result.x
+    d_sup = fb / disjoint_depth_range[0]
+    d_inf = fb / disjoint_depth_range[1]
+
+    d_sup_2 = fb / disjoint_depth_range[2]
+    d_inf_2 = fb / disjoint_depth_range[3]
+
+    depth_estimated_d_sup = k_ * fb / (d_inf + delta_) + b_
+    depth_estimated_d_sup_2 = k_ * fb / (d_sup_2 + delta_) + b_
+
+    actual_disp = fb / actual_depth
+
+    # Fit linear model for the range [400, 600] to ensure continuity
+    mask_linear = np.where(
+        (actual_depth >= disjoint_depth_range[0])
+        & (actual_depth <= depth_estimated_d_sup)
+    )
+    x_linear = disp[mask_linear]
+    y_linear = actual_disp[mask_linear]
+    linear_model = fit_linear_model(x_linear, y_linear)
+
+    # Fit linear model for the range [2900, 3100] to ensure continuity
+    mask_linear2 = np.where(
+        (actual_depth >= depth_estimated_d_sup_2)
+        & (actual_depth <= disjoint_depth_range[3])
+    )
+    x_linear2 = disp[mask_linear2]
+    y_linear2 = actual_disp[mask_linear2]
+    linear_model2 = fit_linear_model(x_linear2, y_linear2)
+
+    return linear_model, result, linear_model2
+
+
+
 def plot_residuals(residuals, error, gt):
     plt.figure(figsize=(10, 6))
     plt.scatter(gt, residuals, alpha=0.5, color="blue", label="fitted residuals")
