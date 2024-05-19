@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,14 +15,16 @@ from numba import jit
 from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
 
+
 def ordered_dict_representer(dumper, data):
     return dumper.represent_dict(data.items())
+
 
 yaml.add_representer(OrderedDict, ordered_dict_representer)
 
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "N09ASH24DH0047"
+CAMERA_TYPE = "0050"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640
@@ -308,7 +312,7 @@ def model_kbd_segmented(actual_depth, disp, focal, baseline, depth_ranges):
 
 
 def model_kbd_joint_linear(
-    actual_depth, disp, focal, baseline, disjoint_depth_range=(400, 600, 2700, 2900)
+    actual_depth, disp, focal, baseline, disjoint_depth_range
 ):
     """
     Fit the KBD model to the data where actual_depth >= 500.
@@ -324,7 +328,10 @@ def model_kbd_joint_linear(
     """
 
     # find the range to calculate KBD params within
-    KBD_mask = np.where((actual_depth >= disjoint_depth_range[1]) & (actual_depth <= disjoint_depth_range[2]))
+    KBD_mask = np.where(
+        (actual_depth >= disjoint_depth_range[1])
+        & (actual_depth <= disjoint_depth_range[2])
+    )
     KBD_disp = disp[KBD_mask]
     KBD_detph = actual_depth[KBD_mask]
 
@@ -335,22 +342,36 @@ def model_kbd_joint_linear(
     KBD_disp_min = np.min(KBD_disp)
     KBD_disp_max = np.max(KBD_disp)
 
-    KBD_pred_depth_max = k_*FB/(KBD_disp_min+delta_)+b_
-    KBD_pred_depth_min = k_*FB/(KBD_disp_max+delta_)+b_
+    KBD_pred_depth_max = k_ * FB / (KBD_disp_min + delta_) + b_
+    KBD_pred_depth_min = k_ * FB / (KBD_disp_max + delta_) + b_
 
     KBD_disp_gt_max = FB / KBD_pred_depth_min
     KBD_disp_gt_min = FB / KBD_pred_depth_max
+    max_joint_disp_gt = FB / disjoint_depth_range[0]
+    min_joint_disp_gt = FB / disjoint_depth_range[3]
+    max_joint_disp = disp[np.where(actual_depth == disjoint_depth_range[0])]
+    min_joint_disp = disp[np.where(actual_depth == disjoint_depth_range[3])]
 
-    k1 = (KBD_disp_gt_max - KBD_disp_gt_min) / (KBD_disp_max - KBD_disp_min)
-    b1 = KBD_disp_gt_min - k1 * KBD_disp_min
+    linear_model1 = LinearRegression()
+    X1 = np.array([max_joint_disp[0], KBD_disp_max])
+    y1 = np.array([max_joint_disp_gt, KBD_disp_gt_max])
+    linear_model1.fit(X1.reshape(-1, 1), y1)
 
+    # if (KBD_disp_gt_max - max_joint_disp_gt) <= 0 or (KBD_disp_max - max_joint_disp) <= 0:
+    #     linear_model1.coef_ = np.array([1])
+    #     linear_model1.intercept_ = np.array(0)
+
+    linear_model2 = LinearRegression()
+    X2 = np.array([min_joint_disp[0], KBD_disp_min])
+    y2 = np.array([min_joint_disp_gt, KBD_disp_gt_min])
+    linear_model2.fit(X2.reshape(-1, 1), y2)
     
 
+    # if (KBD_disp_gt_min - min_joint_disp_gt) <= 0 or (KBD_disp_min - min_joint_disp) <= 0:
+    #     linear_model2.coef_ = np.array([1])
+    #     linear_model2.intercept_ = np.array(0)
 
-
-
-    
-
+    return linear_model1, res, linear_model2
 
 
 def generate_parameters(
@@ -420,10 +441,12 @@ def generate_parameters(
 
 def get_linear_model_params(linear_model):
     """Extract parameters from a linear regression model."""
-    params = OrderedDict([
-        ('alpha', linear_model.coef_.tolist()),
-        ('beta', linear_model.intercept_.tolist())
-    ])
+    params = OrderedDict(
+        [
+            ("alpha", linear_model.coef_.tolist()),
+            ("beta", linear_model.intercept_.tolist()),
+        ]
+    )
     return params
 
 
@@ -431,7 +454,7 @@ def generate_parameters_linear(
     path: str,
     tabel_path: str,
     save_path: str,
-    disjoint_depth_range: tuple = (400, 600, 2700, 2900),
+    disjoint_depth_range: tuple,
 ):
     all_distances = retrive_folder_names(path)
     mean_dists = calculate_mean_value(path, all_distances)
@@ -471,38 +494,65 @@ def generate_parameters_linear(
         default_linear_model.intercept_ = np.array(0.0)
         return get_linear_model_params(default_linear_model)
 
-    params_dict = OrderedDict([
-        (f"{0}-{disjoint_depth_range[0]}", OrderedDict([
-            ('k', 1),
-            ('delta', 0),
-            ('b', 0),
-            ('linear_model_params', create_default_linear_model_params())
-        ])),
-        (f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}", OrderedDict([
-            ('k', 1),
-            ('delta', 0),
-            ('b', 0),
-            ('linear_model_params', linear_model1_params)
-        ])),
-        (f"{disjoint_depth_range[1]}-{disjoint_depth_range[2]}", OrderedDict([
-            ('k', k_),
-            ('delta', delta_),
-            ('b', b_),
-            ('linear_model_params', create_default_linear_model_params())
-        ])),
-        (f"{disjoint_depth_range[2]}-{disjoint_depth_range[3]}", OrderedDict([
-            ('k', 1),
-            ('delta', 0),
-            ('b', 0),
-            ('linear_model_params', linear_model2_params)
-        ])),
-        (f"{disjoint_depth_range[3]}-{np.inf}", OrderedDict([
-            ('k', 1),
-            ('delta', 0),
-            ('b', 0),
-            ('linear_model_params', create_default_linear_model_params())
-        ]))
-    ])
+    params_dict = OrderedDict(
+        [
+            (
+                f"{0}-{disjoint_depth_range[0]}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", create_default_linear_model_params()),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", linear_model1_params),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[1]}-{disjoint_depth_range[2]}",
+                OrderedDict(
+                    [
+                        ("k", k_),
+                        ("delta", delta_),
+                        ("b", b_),
+                        ("linear_model_params", create_default_linear_model_params()),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[2]}-{disjoint_depth_range[3]}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", linear_model2_params),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[3]}-{np.inf}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", create_default_linear_model_params()),
+                    ]
+                ),
+            ),
+        ]
+    )
 
     print(params_dict)
 
@@ -530,56 +580,6 @@ def generate_parameters_linear(
     params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
 
     return params_matrix
-
-
-# def generate_parameters(
-#     path: str,
-#     tabel_path: str,
-#     func: Callable[[np.ndarray, np.ndarray, float, float, Any], Any],
-#     save_path: str = None,
-#     *args: Any
-# ):
-#     all_distances = retrive_folder_names(path)
-#     mean_dists = calculate_mean_value(path, all_distances)
-#     df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
-#     focal, baseline = map_table(df, mean_dists)
-
-#     actual_depth = df[GT_DIST_NAME]
-#     avg_50x50_anchor_disp = df[AVG_DISP_NAME]
-#     error = df[GT_ERROR_NAME]
-
-#     # res = model_kbd(actual_depth, avg_50x50_anchor_disp, focal, baseline)
-#     res = func(actual_depth, avg_50x50_anchor_disp, focal, baseline, *args)
-#     if save_path is None:
-#         save_path = os.path.join(path, OUT_PARAMS_FILE_NAME)
-#         comp_path = os.path.join(path, OUT_FIG_COMP_FILE_NAME)
-#         residual_path = os.path.join(path, OUT_FIG_RESIDUAL_FILE_NAME)
-#         error_rate_path = os.path.join(path, OUT_FIG_ERROR_RATE_FILE_NAME)
-
-#     # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
-#     k_ = float(np.float64(res.x[0]))
-#     delta_ = float(np.float64(res.x[1]))
-#     b_ = float(np.float64(res.x[2]))
-#     params_dict = {
-#         "k": k_,
-#         "delta": delta_,
-#         "b": b_,
-#     }
-#     print(params_dict)
-
-#     with open(save_path, "w") as f:
-#         yaml.dump(params_dict, f, default_flow_style=False)
-#     print("Generating done...")
-
-#     pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
-#     residual = pred - actual_depth
-#     plot_residuals(residual, error, actual_depth, residual_path)
-#     plot_error_rate(residual, error, actual_depth, error_rate_path)
-#     plot_comparison(
-#         actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-#     )
-
-#     return k_, delta_, b_, focal, baseline
 
 
 def depth2disp(m: np.ndarray, focal: float, baseline: float) -> np.ndarray:
@@ -1320,11 +1320,13 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
 
 
 if __name__ == "__main__":
-    rootdir = f"D:/william/codes/depth-quality-fitting/data/{CAMERA_TYPE}/image_data"
-    copydir = f"D:/william/codes/depth-quality-fitting/data/{CAMERA_TYPE}/image_data_transformed"
-    table_path = f"D:/william/codes/depth-quality-fitting/data/{CAMERA_TYPE}/depthquality-2024-05-17.xlsx"
-    params_save_path = f"D:/william/codes/depth-quality-fitting/data/{CAMERA_TYPE}"
+    cwd = os.getcwd()
+    rootdir = f"{cwd}/data/{CAMERA_TYPE}/image_data"
+    copydir = f"{cwd}/data/{CAMERA_TYPE}/image_data_transformed"
+    table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-18.xlsx"
+    params_save_path = f"{cwd}/data/{CAMERA_TYPE}"
     l2_regularization_param = (0.01,)
+    disjoint_depth_range = (400, 600, 2700, 2904)
 
     ################# save new df to csv
     # all_distances = retrive_folder_names(rootdir)
@@ -1337,20 +1339,21 @@ if __name__ == "__main__":
     # )
     #################
 
-    # k, delta, b, focal, baseline = generate_parameters(
-    #     path=rootdir,
-    #     tabel_path=table_path,
-    #     save_path=params_save_path,
-    #     use_l2=False,
-    # )
-
-    params_matrix = generate_parameters_linear(
+    k, delta, b, focal, baseline = generate_parameters(
         path=rootdir,
         tabel_path=table_path,
         save_path=params_save_path,
+        use_l2=False,
     )
-    print(params_matrix)
-    # copy_all_subfolders(rootdir, copydir)
-    # parallel_copy(rootdir, copydir)
 
-    # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
+    # params_matrix = generate_parameters_linear(
+    #     path=rootdir,
+    #     tabel_path=table_path,
+    #     save_path=params_save_path,
+    #     disjoint_depth_range=disjoint_depth_range,
+    # )
+    # print(params_matrix)
+    # copy_all_subfolders(rootdir, copydir)
+    parallel_copy(rootdir, copydir)
+
+    apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
