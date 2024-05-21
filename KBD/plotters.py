@@ -1,5 +1,12 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
+
+from .constants import (
+    OUT_FIG_ERROR_RATE_FILE_NAME,
+    OUT_FIG_COMP_FILE_NAME,
+    OUT_FIG_RESIDUAL_FILE_NAME,
+)
 
 
 def plot_residuals(
@@ -377,13 +384,11 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     mask1 = np.where((gt >= disjoint_depth_range[0]) & (gt <= disjoint_depth_range[1]))
     mask2 = np.where(gt > disjoint_depth_range[1])
 
-
     filtered_disp0 = est[mask0]
     filtered_depth0 = gt[mask0]
     error0 = error[mask0]
     pred0 = gt[mask0]
     residual0 = pred0 - filtered_depth0
-
 
     filtered_disp1 = est[mask1]
     filtered_depth1 = gt[mask1]
@@ -392,14 +397,16 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     pred1 = focal * baseline / pred_1_disp
     residual1 = pred1 - filtered_depth1
 
-
     filtered_disp2 = est[mask2]
     filtered_depth2 = gt[mask2]
     error2 = error[mask2]
 
     # Get optimized parameters
     optimized_params = optimization_result.x
-    pred2 = optimized_params[0] * focal * baseline / (filtered_disp2 + optimized_params[1]) + optimized_params[2]
+    pred2 = (
+        optimized_params[0] * focal * baseline / (filtered_disp2 + optimized_params[1])
+        + optimized_params[2]
+    )
     residual2 = pred2 - filtered_depth2
 
     # all_gt = np.concatenate([gt[mask0], filtered_depth1, filtered_depth2])
@@ -411,27 +418,91 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
 
     # Residuals plot
     fig1, ax1 = plt.subplots(figsize=(6, 6))
-    ax1.scatter(filtered_depth1, residual1, color='blue', alpha=0.5, label='Linear Model Residuals')
-    ax1.scatter(filtered_depth1, error1, color='black', alpha=0.5, label='Actual Residuals')
+    ax1.scatter(
+        filtered_depth1,
+        residual1,
+        color="blue",
+        alpha=0.5,
+        label="Linear Model Residuals",
+    )
+    ax1.scatter(
+        filtered_depth1, error1, color="black", alpha=0.5, label="Actual Residuals"
+    )
 
-    ax1.scatter(filtered_depth2, residual2, color='green', alpha=0.5, label='Optimized Model Residuals')
-    ax1.scatter(filtered_depth2, error2, color='black', alpha=0.5, label='Actual Residuals')
-    ax1.hlines(0, xmin=np.min(filtered_depth2), xmax=np.max(filtered_depth2), colors='red', linestyles='dashed')
-    ax1.set_title('Residuals Plot')
-    ax1.set_xlabel('Ground Truth Depth (m)')
-    ax1.set_ylabel('Residuals')
+    ax1.scatter(
+        filtered_depth2,
+        residual2,
+        color="green",
+        alpha=0.5,
+        label="Optimized Model Residuals",
+    )
+    ax1.scatter(
+        filtered_depth2, error2, color="black", alpha=0.5, label="Actual Residuals"
+    )
+    ax1.hlines(
+        0,
+        xmin=np.min(filtered_depth2),
+        xmax=np.max(filtered_depth2),
+        colors="red",
+        linestyles="dashed",
+    )
+    ax1.set_title("Residuals Plot")
+    ax1.set_xlabel("Ground Truth Depth (m)")
+    ax1.set_ylabel("Residuals")
     ax1.legend()
     plt.show()
 
     # Error rate plot
     fig2, ax2 = plt.subplots(figsize=(6, 6))
-    ax2.scatter(filtered_depth0, residual0 / filtered_depth0 * 100, color='pink', alpha=0.5, label='Unchanged Error Rate')
-    ax2.scatter(filtered_depth0, error0 / filtered_depth0 * 100, color='black', alpha=0.5, label='Actual Error Rate')
-    ax2.scatter(filtered_depth1, residual1 / filtered_depth1 * 100, color='blue', alpha=0.5, label='Linear Model Error Rate')
-    ax2.scatter(filtered_depth1, error1 / filtered_depth1 * 100, color='black', alpha=0.5, label='Actual Error Rate')
-    ax2.scatter(filtered_depth2, residual2 / filtered_depth2 * 100, color='green', alpha=0.5, label='Optimized Model Error Rate')
-    ax2.scatter(filtered_depth2, error2 / filtered_depth2 * 100, color='black', alpha=0.5, label='Actual Error Rate')
-    ax2.hlines(0, xmin=np.min(filtered_depth1), xmax=np.max(filtered_depth2), colors='red', linestyles='dashed')
+    ax2.scatter(
+        filtered_depth0,
+        residual0 / filtered_depth0 * 100,
+        color="pink",
+        alpha=0.5,
+        label="Unchanged Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth0,
+        error0 / filtered_depth0 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth1,
+        residual1 / filtered_depth1 * 100,
+        color="blue",
+        alpha=0.5,
+        label="Linear Model Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth1,
+        error1 / filtered_depth1 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth2,
+        residual2 / filtered_depth2 * 100,
+        color="green",
+        alpha=0.5,
+        label="Optimized Model Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth2,
+        error2 / filtered_depth2 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.hlines(
+        0,
+        xmin=np.min(filtered_depth1),
+        xmax=np.max(filtered_depth2),
+        colors="red",
+        linestyles="dashed",
+    )
     ax2.hlines(
         2,
         xmin=0,
@@ -464,21 +535,49 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
         linestyles="dashed",
         label="4(%) error Line",
     )
-    ax2.set_title('Error Rate Plot (%)')
-    ax2.set_xlabel('Ground Truth Depth (m)')
-    ax2.set_ylabel('Error Rate (%)')
+    ax2.set_title("Error Rate Plot (%)")
+    ax2.set_xlabel("Ground Truth Depth (m)")
+    ax2.set_ylabel("Error Rate (%)")
     ax2.legend()
     plt.show()
 
     # Depth comparison plot
     fig3, ax3 = plt.subplots(figsize=(6, 6))
-    ax3.plot(gt, focal*baseline/est, label='Measured Data', marker='o', linestyle='None', color='black')
-    ax3.plot(gt[mask0], pred0, label='Measured Data (< 500)', marker='o', linestyle='None', color='red')
-    ax3.plot(filtered_depth1, pred1, label='Linear Model (500-600)', marker='x', linestyle='None', color='blue')
-    ax3.plot(filtered_depth2, pred2, label='Optimized Model (> 600)', marker='x', linestyle='None', color='green')
-    ax3.set_xlabel('Ground Truth Depth (m)')
-    ax3.set_ylabel('Depth (m)')
-    ax3.set_title('Comparison of Measured and Fitted Depths')
+    ax3.plot(
+        gt,
+        focal * baseline / est,
+        label="Measured Data",
+        marker="o",
+        linestyle="None",
+        color="black",
+    )
+    ax3.plot(
+        gt[mask0],
+        pred0,
+        label="Measured Data (< 500)",
+        marker="o",
+        linestyle="None",
+        color="red",
+    )
+    ax3.plot(
+        filtered_depth1,
+        pred1,
+        label="Linear Model (500-600)",
+        marker="x",
+        linestyle="None",
+        color="blue",
+    )
+    ax3.plot(
+        filtered_depth2,
+        pred2,
+        label="Optimized Model (> 600)",
+        marker="x",
+        linestyle="None",
+        color="green",
+    )
+    ax3.set_xlabel("Ground Truth Depth (m)")
+    ax3.set_ylabel("Depth (m)")
+    ax3.set_title("Comparison of Measured and Fitted Depths")
     ax3.legend()
     plt.show()
 
@@ -553,4 +652,307 @@ def plot_all_in_one(gt, est, focal, baseline, depth_ranges, res):
             ax.legend()
 
     plt.tight_layout()
+    plt.show()
+
+
+def plot_linear(
+    gt, est, error, focal, baseline, res, disjoint_depth_range, save_path=None
+):
+    linear_model, optimization_result, linear_model2 = res
+
+    # Filter data where actual_depth >= 600
+    mask0 = np.where(gt < disjoint_depth_range[0])
+    mask1 = np.where((gt >= disjoint_depth_range[0]) & (gt <= disjoint_depth_range[1]))
+    mask2 = (gt > disjoint_depth_range[1]) & (gt <= disjoint_depth_range[2])
+    mask3 = (gt > disjoint_depth_range[2]) & (gt <= disjoint_depth_range[3])
+    mask4 = gt > disjoint_depth_range[3]
+
+    filtered_disp0 = est[mask0]
+    filtered_depth0 = gt[mask0]
+    error0 = error[mask0]
+    pred0 = gt[mask0]
+    residual0 = pred0 - filtered_depth0
+
+    filtered_disp1 = est[mask1]
+    filtered_depth1 = gt[mask1]
+    error1 = error[mask1]
+    pred_1_disp = linear_model.predict(filtered_disp1.reshape(-1, 1))
+    pred1 = focal * baseline / pred_1_disp
+    residual1 = pred1 - filtered_depth1
+
+    filtered_disp2 = est[mask2]
+    filtered_depth2 = gt[mask2]
+    error2 = error[mask2]
+
+    # Get optimized parameters
+    optimized_params = optimization_result.x
+    pred2 = (
+        optimized_params[0] * focal * baseline / (filtered_disp2 + optimized_params[1])
+        + optimized_params[2]
+    )
+    residual2 = pred2 - filtered_depth2
+
+    filtered_disp3 = est[mask3]
+    filtered_depth3 = gt[mask3]
+    error3 = error[mask3]
+    pred_3_disp = linear_model2.predict(filtered_disp3.reshape(-1, 1))
+    pred3 = focal * baseline / pred_3_disp
+    residual3 = pred3 - filtered_depth3
+
+    filtered_disp4 = est[mask4]
+    filtered_depth4 = gt[mask4]
+    error4 = error[mask4]
+    pred4 = gt[mask4]
+    residual4 = pred4 - filtered_depth4
+
+    if save_path is not None:
+        LINEAR_COMMON = "linear_"
+        comp_path = os.path.join(save_path, LINEAR_COMMON + OUT_FIG_COMP_FILE_NAME)
+        residual_path = os.path.join(
+            save_path, LINEAR_COMMON + OUT_FIG_RESIDUAL_FILE_NAME
+        )
+        error_rate_path = os.path.join(
+            save_path, LINEAR_COMMON + OUT_FIG_ERROR_RATE_FILE_NAME
+        )
+
+    # Residuals plot
+    fig1, ax1 = plt.subplots(figsize=(10, 6))
+    ax1.scatter(
+        filtered_depth0,
+        residual0,
+        color="cyan",
+        alpha=0.5,
+        label="Actual Residuals",
+    )
+    ax1.scatter(
+        filtered_depth1,
+        residual1,
+        color="blue",
+        alpha=0.5,
+        label="Linear Model 1 Residuals",
+    )
+    ax1.scatter(
+        filtered_depth1, error1, color="black", alpha=0.5, label="Actual Residuals"
+    )
+
+    ax1.scatter(
+        filtered_depth2,
+        residual2,
+        color="green",
+        alpha=0.5,
+        label="Optimized Model Residuals",
+    )
+    ax1.scatter(
+        filtered_depth2, error2, color="black", alpha=0.5, label="Actual Residuals"
+    )
+
+    ax1.scatter(
+        filtered_depth3,
+        residual3,
+        color="red",
+        alpha=0.5,
+        label="Linear Model 2 Residuals",
+    )
+    ax1.scatter(
+        filtered_depth3, error3, color="black", alpha=0.5, label="Actual Residuals"
+    )
+    ax1.hlines(
+        0,
+        xmin=0,
+        xmax=np.max(filtered_depth4),
+        colors="red",
+        linestyles="dashed",
+    )
+    ax1.set_title("Residuals Plot")
+    ax1.set_xlabel("Ground Truth Depth (m)")
+    ax1.set_ylabel("Residuals")
+    ax1.legend()
+    if save_path is not None:
+        plt.savefig(residual_path)
+    plt.show()
+
+    # Error rate plot
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    ax2.scatter(
+        filtered_depth0,
+        residual0 / filtered_depth0 * 100,
+        color="pink",
+        alpha=0.5,
+        label="Unchanged Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth0,
+        error0 / filtered_depth0 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth1,
+        residual1 / filtered_depth1 * 100,
+        color="blue",
+        alpha=0.5,
+        label="Linear Model 1 Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth1,
+        error1 / filtered_depth1 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth2,
+        residual2 / filtered_depth2 * 100,
+        color="green",
+        alpha=0.5,
+        label="Optimized Model Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth2,
+        error2 / filtered_depth2 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth3,
+        residual3 / filtered_depth3 * 100,
+        color="gray",
+        alpha=0.5,
+        label="Linear Model 2 Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth3,
+        error3 / filtered_depth3 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth4,
+        residual4 / filtered_depth4 * 100,
+        color="cyan",
+        alpha=0.5,
+        label="Unchanged Error Rate",
+    )
+    ax2.scatter(
+        filtered_depth4,
+        error4 / filtered_depth4 * 100,
+        color="black",
+        alpha=0.5,
+        label="Actual Error Rate",
+    )
+    ax2.hlines(
+        0,
+        xmin=0,
+        xmax=np.max(filtered_depth4),
+        colors="red",
+        linestyles="dashed",
+    )
+    ax2.hlines(
+        2,
+        xmin=0,
+        xmax=np.max(filtered_depth4),
+        colors="pink",
+        linestyles="dashed",
+        label="2(%) error Line",
+    )
+    ax2.hlines(
+        -2,
+        xmin=0,
+        xmax=np.max(filtered_depth4),
+        colors="pink",
+        linestyles="dashed",
+        label="2(%) error Line",
+    )
+    ax2.hlines(
+        4,
+        xmin=0,
+        xmax=np.max(filtered_depth4),
+        colors="cyan",
+        linestyles="dashed",
+        label="4(%) error Line",
+    )
+    ax2.hlines(
+        -4,
+        xmin=0,
+        xmax=np.max(filtered_depth4),
+        colors="cyan",
+        linestyles="dashed",
+        label="4(%) error Line",
+    )
+    ax2.set_title("Error Rate Plot (%)")
+    ax2.set_xlabel("Ground Truth Depth (m)")
+    ax2.set_ylabel("Error Rate (%)")
+    ax2.legend(fontsize=5)
+    if save_path is not None:
+        plt.savefig(error_rate_path)
+    plt.show()
+
+    # Depth comparison plot
+    fig3, ax3 = plt.subplots(figsize=(10, 6))
+    ax3.plot(
+        gt, focal * baseline / est, label="Measured Data", marker="o", color="black"
+    )
+    ax3.plot(
+        gt[mask0],
+        pred0,
+        label=f"Measured Data (< {disjoint_depth_range[0]})",
+        marker="o",
+        color="red",
+    )
+    ax3.plot(
+        filtered_depth1,
+        pred1,
+        label=f"Linear Model ({disjoint_depth_range[0]}-{disjoint_depth_range[1]})",
+        marker="x",
+        color="blue",
+    )
+    ax3.plot(
+        filtered_depth2,
+        pred2,
+        label=f"Optimized Model (> {disjoint_depth_range[1]})",
+        marker="x",
+        color="green",
+    )
+    ax3.plot(
+        filtered_depth3,
+        pred3,
+        label=f"Linear Model ({disjoint_depth_range[2]}-{disjoint_depth_range[3]})",
+        marker="x",
+        color="cyan",
+    )
+    ax3.plot(
+        gt[mask4],
+        pred4,
+        label=f"Measured Data (>{disjoint_depth_range[3]})",
+        marker="o",
+        color="red",
+    )
+
+    ax3.set_xlabel("Ground Truth Depth (m)")
+    ax3.set_ylabel("Depth (m)")
+    ax3.set_title("Comparison of Measured and Fitted Depths")
+    ax3.legend()
+    if save_path is not None:
+        plt.savefig(comp_path)
+    plt.show()
+
+
+def plot_prediction_curve(
+    func,
+    func_args,
+    save_path=None,
+):
+    x_values, y_values = func(*func_args)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x_values, y_values, label="Predicted Depth", color="blue")
+    plt.xlabel("Distance (mm)")
+    plt.ylabel("Predicted Value")
+    plt.title("Prediction Curve")
+    plt.legend()
+    if save_path is not None:
+        plt.savefig(save_path)
     plt.show()

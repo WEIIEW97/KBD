@@ -2,6 +2,8 @@ import numpy as np
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
 
+from .constants import EPSILON
+
 
 def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
     model = LinearRegression()
@@ -119,7 +121,7 @@ def model_kbd_further_optimized(
     return result
 
 
-def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_range=(500, 600)):
+def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_range):
     """
     Fit the KBD model to the data where actual_depth >= 500.
 
@@ -132,44 +134,51 @@ def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_r
     Returns:
     tuple: A tuple containing the linear model for the joint point and the optimization result.
     """
-    def mfunc(params, disp, baseline, focal):
-        k, delta, b = params
-        return k * focal * baseline / (disp + delta) + b
 
-    def cost_func(params, disp, baseline, focal, actual_depth):
-        predictions = mfunc(params, disp, baseline, focal)
-        return np.mean((actual_depth - predictions) ** 2)
-
-    # Filter data where actual_depth >= 500
-    mask = np.where(actual_depth >= disjoint_depth_range[0])
-    filtered_disp = disp[mask]
-    filtered_depth = actual_depth[mask]
-
-    # Fit the model on the filtered data
-    initial_params = [1.0, 0.01, 10]  # Reasonable starting values
-    result = minimize(
-        cost_func,
-        initial_params,
-        args=(filtered_disp, baseline, focal, filtered_depth),
-        method="Nelder-Mead"
+    # find the range to calculate KBD params within
+    KBD_mask = np.where(
+        (actual_depth >= disjoint_depth_range[1])
+        & (actual_depth <= disjoint_depth_range[2])
     )
+    KBD_disp = disp[KBD_mask]
+    KBD_detph = actual_depth[KBD_mask]
 
-    # find the estimiated disparity to depth range within [500, 600]
-    fb = focal*baseline
-    k_, delta_, b_ = result.x
-    d_sup = fb/disjoint_depth_range[0]
-    d_inf = fb/disjoint_depth_range[1]
+    res = model_kbd(KBD_detph, KBD_disp, focal, baseline)
+    k_, delta_, b_ = res.x
+    FB = focal * baseline
+    # now find the prediction within KBD_disp with KBD_res parameters
+    KBD_disp_min = np.min(KBD_disp)
+    KBD_disp_max = np.max(KBD_disp)
 
-    depth_estimated_d_sup = k_*fb/(d_inf+delta_) + b_
-    actual_disp = fb / actual_depth
+    KBD_pred_depth_max = k_ * FB / (KBD_disp_min + delta_) + b_
+    KBD_pred_depth_min = k_ * FB / (KBD_disp_max + delta_) + b_
 
-    # Fit linear model for the range [500, 600] to ensure continuity
-    mask_linear = np.where((actual_depth >= 500) & (actual_depth <= depth_estimated_d_sup))
-    x_linear = disp[mask_linear]
-    y_linear = actual_disp[mask_linear]
-    linear_model = fit_linear_model(x_linear, y_linear)
+    KBD_disp_gt_max = FB / KBD_pred_depth_min
+    KBD_disp_gt_min = FB / KBD_pred_depth_max
+    max_joint_disp_gt = FB / disjoint_depth_range[0]
+    min_joint_disp_gt = FB / disjoint_depth_range[3]
+    max_joint_disp = disp[np.where(actual_depth == disjoint_depth_range[0])]
+    min_joint_disp = disp[np.where(actual_depth == disjoint_depth_range[3])]
 
-    return linear_model, result
+    linear_model1 = LinearRegression()
+    X1 = np.array([max_joint_disp[0], KBD_disp_max])
+    y1 = np.array([max_joint_disp_gt, KBD_disp_gt_max])
+    linear_model1.fit(X1.reshape(-1, 1), y1)
+
+    # if (KBD_disp_gt_max - max_joint_disp_gt) <= 0 or (KBD_disp_max - max_joint_disp) <= 0:
+    #     linear_model1.coef_ = np.array([1])
+    #     linear_model1.intercept_ = np.array(0)
+
+    linear_model2 = LinearRegression()
+    X2 = np.array([min_joint_disp[0], KBD_disp_min])
+    y2 = np.array([min_joint_disp_gt, KBD_disp_gt_min])
+    linear_model2.fit(X2.reshape(-1, 1), y2)
+
+    # if (KBD_disp_gt_min - min_joint_disp_gt) <= 0 or (KBD_disp_min - min_joint_disp) <= 0:
+    #     linear_model2.coef_ = np.array([1])
+    #     linear_model2.intercept_ = np.array(0)
+
+    return linear_model1, res, linear_model2
 
 
 def model_kbd_segmented(actual_depth, disp, focal, baseline, depth_ranges):
@@ -248,3 +257,35 @@ def model_poly_n2(actual_depth, disp, focal, baseline, reg_lambda=0.001):
         print("The optimization did not converge:", result.message)
 
     return result
+
+
+def linear_KBD_piecewise_func(
+    x, focal, baseline, params_matrix, disjoint_depth_range
+) -> float:
+    k1, delta1, b1, coef1, intercept1 = params_matrix[1]
+    k2, delta2, b2, coef2, intercept2 = params_matrix[2]
+    k3, delta3, b3, coef3, intercept3 = params_matrix[3]
+
+    FB = focal * baseline
+    if x == 0:
+        return x
+    disp = FB / x
+
+    if x < disjoint_depth_range[0]:
+        return x
+    elif disjoint_depth_range[0] <= x < disjoint_depth_range[1]:
+        return FB / (coef1 * disp + intercept1)
+    elif disjoint_depth_range[1] <= x < disjoint_depth_range[2]:
+        return k2 * FB / (disp + delta2) + b2
+    elif disjoint_depth_range[2] <= x < disjoint_depth_range[3]:
+        return FB / (coef3 * disp + intercept3)
+    else:
+        return x
+
+
+def global_KBD_func(x, focal, baseline, k, delta, b):
+    FB = focal * baseline
+    if x <= EPSILON:
+        return x
+    disp = FB / x
+    return k * FB / (disp + delta) + b

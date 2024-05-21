@@ -12,7 +12,7 @@ from sklearn.linear_model import LinearRegression
 from typing import Union, Callable, Any
 from tqdm import tqdm
 from numba import jit
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import OrderedDict
 
 
@@ -24,7 +24,7 @@ yaml.add_representer(OrderedDict, ordered_dict_representer)
 
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "0050"
+CAMERA_TYPE = "N09ASH24DH0047"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640
@@ -32,7 +32,7 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 
-ANCHOR_POINT = [H // 2, W // 2]
+ANCHOR_POINT = [250, 378]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
@@ -46,6 +46,7 @@ LINEAR_OUT_PARAMS_FILE_NAME = "linear_" + OUT_PARAMS_FILE_NAME
 OUT_FIG_COMP_FILE_NAME = "compare.jpg"
 OUT_FIG_RESIDUAL_FILE_NAME = "fitted_residual.jpg"
 OUT_FIG_ERROR_RATE_FILE_NAME = "error_rate.jpg"
+OUT_FIG_PREDICTION_FILE_NAME = "piecewise_prediction.jpg"
 MAPPED_COLUMN_NAMES = ["actual_depth", "focal", "baseline", "absolute_error"]
 MAPPED_PAIR_DICT = {
     "距离(mm)": "actual_depth",
@@ -311,9 +312,7 @@ def model_kbd_segmented(actual_depth, disp, focal, baseline, depth_ranges):
     return results
 
 
-def model_kbd_joint_linear(
-    actual_depth, disp, focal, baseline, disjoint_depth_range
-):
+def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_range):
     """
     Fit the KBD model to the data where actual_depth >= 500.
 
@@ -336,6 +335,9 @@ def model_kbd_joint_linear(
     KBD_detph = actual_depth[KBD_mask]
 
     res = model_kbd(KBD_detph, KBD_disp, focal, baseline)
+    # res = model_kbd_further_optimized(
+    #     KBD_detph, KBD_disp, focal, baseline, reg_lambda=0.01
+    # )
     k_, delta_, b_ = res.x
     FB = focal * baseline
     # now find the prediction within KBD_disp with KBD_res parameters
@@ -365,7 +367,6 @@ def model_kbd_joint_linear(
     X2 = np.array([min_joint_disp[0], KBD_disp_min])
     y2 = np.array([min_joint_disp_gt, KBD_disp_gt_min])
     linear_model2.fit(X2.reshape(-1, 1), y2)
-    
 
     # if (KBD_disp_gt_min - min_joint_disp_gt) <= 0 or (KBD_disp_min - min_joint_disp) <= 0:
     #     linear_model2.coef_ = np.array([1])
@@ -568,6 +569,17 @@ def generate_parameters_linear(
     #     actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
     # )
 
+    plot_linear(
+        actual_depth,
+        avg_50x50_anchor_disp,
+        error,
+        focal,
+        baseline,
+        (linear_model1, res, linear_model2),
+        disjoint_depth_range,
+        save_path=save_path,
+    )
+
     params_matrix = np.zeros((5, 5), dtype=np.float32)
     params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
     params_matrix[1, :] = np.array(
@@ -579,7 +591,7 @@ def generate_parameters_linear(
     )
     params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
 
-    return params_matrix
+    return params_matrix, focal, baseline
 
 
 def depth2disp(m: np.ndarray, focal: float, baseline: float) -> np.ndarray:
@@ -609,6 +621,47 @@ def modify(
             if quali <= epsilon or m[i, j] == 0:
                 continue
             out[i, j] = max(k * fb / quali + b, 0)
+    return out
+
+
+@jit(nopython=True)
+def modify_linear(
+    m: np.ndarray,
+    h: int,
+    w: int,
+    focal: float,
+    baseline: float,
+    param_matrix: np.ndarray,
+    disjoint_depth_range: tuple,
+) -> np.ndarray:
+    fb = focal * baseline
+    out = np.zeros_like(m)
+    for i in range(h):
+        for j in range(w):
+            if m[i, j] < disjoint_depth_range[0]:
+                out[i, j] = m[i, j]
+            elif (
+                m[i, j] >= disjoint_depth_range[0] and m[i, j] < disjoint_depth_range[1]
+            ):
+                disp0 = fb / m[i, j]
+                k_, delta_, b_, alpha_, beta_ = param_matrix[1, :]
+                disp1 = alpha_ * disp0 + beta_
+                out[i, j] = fb / disp1
+            elif (
+                m[i, j] >= disjoint_depth_range[1] and m[i, j] < disjoint_depth_range[2]
+            ):
+                disp0 = fb / m[i, j]
+                k_, delta_, b_, alpha_, beta_ = param_matrix[2, :]
+                out[i, j] = k_ * fb / (disp0 + delta_) + b_
+            elif (
+                m[i, j] >= disjoint_depth_range[2] and m[i, j] < disjoint_depth_range[3]
+            ):
+                disp0 = fb / m[i, j]
+                k_, delta_, b_, alpha_, beta_ = param_matrix[3, :]
+                disp1 = alpha_ * disp0 + beta_
+                out[i, j] = fb / disp1
+            elif m[i, j] >= disjoint_depth_range[3]:
+                out[i, j] = m[i, j]
     return out
 
 
@@ -656,11 +709,50 @@ def apply_transformation(
     print("Transformating data done ...")
 
 
+def apply_transformation_linear(
+    path: str,
+    params_matrix: np.ndarray,
+    focal: float,
+    baseline: float,
+    disjoint_depth_range: tuple,
+) -> None:
+    folders = retrive_folder_names(path)
+
+    for folder in tqdm(folders):
+        paths = retrive_file_names(os.path.join(path, folder, SUBFIX))
+        for p in paths:
+            full_path = os.path.join(path, folder, SUBFIX, p)
+            raw = load_raw(full_path, H, W)
+            depth = modify_linear(
+                raw, H, W, focal, baseline, params_matrix, disjoint_depth_range
+            )
+            # make sure raw value is within range(0, 65535)
+            depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
+            depth = depth.astype(np.uint16)
+            with open(full_path, "wb") as f:
+                depth.tofile(f)
+
+    print("Transformating data done ...")
+
+
 def transformer_impl(full_path, H, W, k, delta, b, focal, baseline, epislon) -> None:
     raw = load_raw(full_path, H, W)
     disp = depth2disp(raw, focal, baseline)
     depth = modify(disp, H, W, k, delta, b, focal, baseline, epislon)
     depth = np.clip(depth, UINT16_MIN, UINT16_MAX)  # Ensure within range
+    depth = depth.astype(np.uint16)
+    with open(full_path, "wb") as f:
+        depth.tofile(f)
+
+
+def transformer_linear_impl(
+    full_path, H, W, focal, baseline, params_matrix, disjoint_depth_range
+):
+    raw = load_raw(full_path, H, W)
+    depth = modify_linear(
+        raw, H, W, focal, baseline, params_matrix, disjoint_depth_range
+    )
+    depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
     depth = depth.astype(np.uint16)
     with open(full_path, "wb") as f:
         depth.tofile(f)
@@ -699,6 +791,41 @@ def apply_transformation_parallel(
         list(tqdm(executor.map(process_folder, folders), total=len(folders)))
 
     print("Transformation data done ...")
+
+
+def apply_transformation_linear_parallel(
+    path: str,
+    params_matrix: np.ndarray,
+    focal: float,
+    baseline: float,
+    disjoint_depth_range: tuple,
+    max_workers: int = 8,
+) -> None:
+    folders = retrive_folder_names(path)
+    tasks = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for folder in folders:
+            paths = retrive_file_names(os.path.join(path, folder, SUBFIX))
+            for p in paths:
+                full_path = os.path.join(path, folder, SUBFIX, p)
+                tasks.append(
+                    executor.submit(
+                        transformer_linear_impl,
+                        full_path,
+                        H,
+                        W,
+                        focal,
+                        baseline,
+                        params_matrix,
+                        disjoint_depth_range,
+                    )
+                )
+
+        for future in tqdm(as_completed(tasks), total=len(tasks)):
+            future.result()  # Ensure any exceptions are raised
+
+    print("Transforming data done...")
 
 
 def plot_residuals(
@@ -1068,7 +1195,9 @@ def plot_unified_results(gt, est, error, focal, baseline, depth_ranges, res):
     plt.show()
 
 
-def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
+def plot_linear(
+    gt, est, error, focal, baseline, res, disjoint_depth_range, save_path=None
+):
     linear_model, optimization_result, linear_model2 = res
 
     # Filter data where actual_depth >= 600
@@ -1116,15 +1245,25 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     pred4 = gt[mask4]
     residual4 = pred4 - filtered_depth4
 
-    # all_gt = np.concatenate([gt[mask0], filtered_depth1, filtered_depth2])
-    # all_pred = np.concatenate([pred0, pred1, pred2])
-    # all_residuals = np.concatenate([np.zeros_like(pred0), residual1, residual2])
-    # all_errors = np.concatenate([np.zeros_like(pred0), error1, error2])
-
-    # fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    if save_path is not None:
+        LINEAR_COMMON = "linear_"
+        comp_path = os.path.join(save_path, LINEAR_COMMON + OUT_FIG_COMP_FILE_NAME)
+        residual_path = os.path.join(
+            save_path, LINEAR_COMMON + OUT_FIG_RESIDUAL_FILE_NAME
+        )
+        error_rate_path = os.path.join(
+            save_path, LINEAR_COMMON + OUT_FIG_ERROR_RATE_FILE_NAME
+        )
 
     # Residuals plot
-    fig1, ax1 = plt.subplots(figsize=(6, 6))
+    fig1, ax1 = plt.subplots(figsize=(10, 6))
+    ax1.scatter(
+        filtered_depth0,
+        residual0,
+        color="cyan",
+        alpha=0.5,
+        label="Actual Residuals",
+    )
     ax1.scatter(
         filtered_depth1,
         residual1,
@@ -1159,8 +1298,8 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     )
     ax1.hlines(
         0,
-        xmin=np.min(filtered_depth2),
-        xmax=np.max(filtered_depth2),
+        xmin=0,
+        xmax=np.max(filtered_depth4),
         colors="red",
         linestyles="dashed",
     )
@@ -1168,10 +1307,12 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     ax1.set_xlabel("Ground Truth Depth (m)")
     ax1.set_ylabel("Residuals")
     ax1.legend()
+    if save_path is not None:
+        plt.savefig(residual_path)
     plt.show()
 
     # Error rate plot
-    fig2, ax2 = plt.subplots(figsize=(6, 6))
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
     ax2.scatter(
         filtered_depth0,
         residual0 / filtered_depth0 * 100,
@@ -1244,8 +1385,8 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     )
     ax2.hlines(
         0,
-        xmin=np.min(filtered_depth1),
-        xmax=np.max(filtered_depth2),
+        xmin=0,
+        xmax=np.max(filtered_depth4),
         colors="red",
         linestyles="dashed",
     )
@@ -1284,49 +1425,152 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     ax2.set_title("Error Rate Plot (%)")
     ax2.set_xlabel("Ground Truth Depth (m)")
     ax2.set_ylabel("Error Rate (%)")
-    ax2.legend()
+    ax2.legend(fontsize=5)
+    if save_path is not None:
+        plt.savefig(error_rate_path)
     plt.show()
 
     # Depth comparison plot
-    fig3, ax3 = plt.subplots(figsize=(6, 6))
+    fig3, ax3 = plt.subplots(figsize=(10, 6))
     ax3.plot(
         gt, focal * baseline / est, label="Measured Data", marker="o", color="black"
     )
-    ax3.plot(gt[mask0], pred0, label="Measured Data (< 400)", marker="o", color="red")
     ax3.plot(
-        filtered_depth1, pred1, label="Linear Model (400-600)", marker="x", color="blue"
+        gt[mask0],
+        pred0,
+        label=f"Measured Data (< {disjoint_depth_range[0]})",
+        marker="o",
+        color="red",
+    )
+    ax3.plot(
+        filtered_depth1,
+        pred1,
+        label=f"Linear Model ({disjoint_depth_range[0]}-{disjoint_depth_range[1]})",
+        marker="x",
+        color="blue",
     )
     ax3.plot(
         filtered_depth2,
         pred2,
-        label="Optimized Model (> 600)",
+        label=f"Optimized Model (> {disjoint_depth_range[1]})",
         marker="x",
         color="green",
     )
     ax3.plot(
         filtered_depth3,
         pred3,
-        label="Linear Model (2700-2900)",
+        label=f"Linear Model ({disjoint_depth_range[2]}-{disjoint_depth_range[3]})",
         marker="x",
         color="cyan",
     )
-    ax3.plot(gt[mask4], pred4, label="Measured Data (>2900)", marker="o", color="red")
+    ax3.plot(
+        gt[mask4],
+        pred4,
+        label=f"Measured Data (>{disjoint_depth_range[3]})",
+        marker="o",
+        color="red",
+    )
 
     ax3.set_xlabel("Ground Truth Depth (m)")
     ax3.set_ylabel("Depth (m)")
     ax3.set_title("Comparison of Measured and Fitted Depths")
     ax3.legend()
+    if save_path is not None:
+        plt.savefig(comp_path)
+    plt.show()
+
+
+def _linear_KBD_piecewise_func(
+    x, focal, baseline, params_matrix, disjoint_depth_range
+) -> float:
+    k1, delta1, b1, coef1, intercept1 = params_matrix[1]
+    k2, delta2, b2, coef2, intercept2 = params_matrix[2]
+    k3, delta3, b3, coef3, intercept3 = params_matrix[3]
+
+    FB = focal * baseline
+    if x == 0:
+        return x
+    disp = FB / x
+
+    if x < disjoint_depth_range[0]:
+        return x
+    elif disjoint_depth_range[0] <= x < disjoint_depth_range[1]:
+        return FB / (coef1 * disp + intercept1)
+    elif disjoint_depth_range[1] <= x < disjoint_depth_range[2]:
+        return k2 * FB / (disp + delta2) + b2
+    elif disjoint_depth_range[2] <= x < disjoint_depth_range[3]:
+        return FB / (coef3 * disp + intercept3)
+    else:
+        return x
+
+
+def _global_KBD_func(x, focal, baseline, k, delta, b):
+    FB = focal * baseline
+    if x == 0:
+        return x
+    disp = FB / x
+    return k * FB / (disp + delta) + b
+
+
+def generate_linear_KBD_data(
+    focal,
+    baseline,
+    params_matrix,
+    disjoint_depth_range,
+    range_start=0,
+    range_end=5000,
+    step=1,
+):
+    x_values = np.arange(range_start, range_end + 1, step)
+    y_values = [
+        _linear_KBD_piecewise_func(
+            x, focal, baseline, params_matrix, disjoint_depth_range
+        )
+        for x in x_values
+    ]
+    y_values = np.array(y_values).astype(np.uint16)
+    return x_values, y_values
+
+
+def generate_global_KBD_data(
+    focal, baseline, k, delta, b, range_start=0, range_end=5000, step=1
+):
+    x_values = np.arange(range_start, range_end + 1, step)
+    y_values = [_global_KBD_func(x, focal, baseline, k, delta, b) for x in x_values]
+    y_values = np.array(y_values).astype(np.uint16)
+    return x_values, y_values
+
+
+def plot_prediction_curve(
+    func,
+    func_args,
+    save_path=None,
+    range_start=0,
+    range_end=5000,
+    step=1,
+):
+    x_values, y_values = func(*func_args, range_start, range_end, step)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x_values, y_values, label="Predicted Depth", color="blue")
+    plt.xlabel("Distance (mm)")
+    plt.ylabel("Predicted Value")
+    plt.title("Prediction Curve")
+    plt.legend()
+    if save_path is not None:
+        plt.savefig(save_path)
     plt.show()
 
 
 if __name__ == "__main__":
     cwd = os.getcwd()
     rootdir = f"{cwd}/data/{CAMERA_TYPE}/image_data"
-    copydir = f"{cwd}/data/{CAMERA_TYPE}/image_data_transformed"
-    table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-18.xlsx"
+    copydir = f"{cwd}/data/{CAMERA_TYPE}/image_data_transformed_linear"
+    table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-17.xlsx"
     params_save_path = f"{cwd}/data/{CAMERA_TYPE}"
     l2_regularization_param = (0.01,)
-    disjoint_depth_range = (400, 600, 2700, 2904)
+    disjoint_depth_range = (403, 600, 2700, 2907)
+    pseudo_range = (0, 5000)
 
     ################# save new df to csv
     # all_distances = retrive_folder_names(rootdir)
@@ -1339,21 +1583,31 @@ if __name__ == "__main__":
     # )
     #################
 
-    k, delta, b, focal, baseline = generate_parameters(
-        path=rootdir,
-        tabel_path=table_path,
-        save_path=params_save_path,
-        use_l2=False,
-    )
-
-    # params_matrix = generate_parameters_linear(
+    # k, delta, b, focal, baseline = generate_parameters(
     #     path=rootdir,
     #     tabel_path=table_path,
     #     save_path=params_save_path,
-    #     disjoint_depth_range=disjoint_depth_range,
+    #     use_l2=False,
     # )
-    # print(params_matrix)
+
+    params_matrix, focal, baseline = generate_parameters_linear(
+        path=rootdir,
+        tabel_path=table_path,
+        save_path=params_save_path,
+        disjoint_depth_range=disjoint_depth_range,
+    )
+    print(params_matrix)
+    plot_prediction_curve(
+        generate_linear_KBD_data,
+        (focal, baseline, params_matrix, disjoint_depth_range),
+        os.path.join(params_save_path, OUT_FIG_PREDICTION_FILE_NAME),
+        pseudo_range[0],
+        pseudo_range[1],
+    )
     # copy_all_subfolders(rootdir, copydir)
     parallel_copy(rootdir, copydir)
 
-    apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
+    # # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
+    apply_transformation_linear_parallel(
+        copydir, params_matrix, focal, baseline, disjoint_depth_range
+    )

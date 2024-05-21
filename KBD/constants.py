@@ -1,6 +1,6 @@
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "N9_concat"
+CAMERA_TYPE = "N09ASH24DH0047"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640
@@ -8,7 +8,7 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 
-ANCHOR_POINT = [H // 2, W // 2]
+ANCHOR_POINT = [250, 378]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
@@ -18,9 +18,12 @@ FOCAL_NAME = "focal"
 BASLINE_NAME = "baseline"
 
 OUT_PARAMS_FILE_NAME = "KBD_model_fitted_params.yaml"
+LINEAR_OUT_PARAMS_FILE_NAME = "linear_" + OUT_PARAMS_FILE_NAME
 OUT_FIG_COMP_FILE_NAME = "compare.jpg"
 OUT_FIG_RESIDUAL_FILE_NAME = "fitted_residual.jpg"
 OUT_FIG_ERROR_RATE_FILE_NAME = "error_rate.jpg"
+OUT_FIG_GLOBAL_PREDICTION_FILE_NAME = "global_KBD_prediction.jpg"
+OUT_FIG_LINEAR_PREDICTION_FILE_NAME = "piecewise_prediction.jpg"
 MAPPED_COLUMN_NAMES = ["actual_depth", "focal", "baseline", "absolute_error"]
 MAPPED_PAIR_DICT = {
     "距离(mm)": "actual_depth",
