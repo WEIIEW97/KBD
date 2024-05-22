@@ -2,6 +2,7 @@ from KBD.apis import (
     generate_parameters_linear,
     apply_transformation_linear_parallel,
     generate_parameters,
+    generate_parameters_kernel,
 )
 from KBD.plotters import plot_prediction_curve
 from KBD.helpers import parallel_copy
@@ -24,20 +25,28 @@ if __name__ == "__main__":
     disjoint_depth_range = (403, 600, 2700, 2907)
     pseudo_range = (100, 5000)
 
-    k, delta, b, focal, baseline = generate_parameters(
-        path=rootdir,
-        tabel_path=table_path,
-        save_path=params_save_path,
-        use_l2=False,
-    )
-
-    # params_matrix, focal, baseline = generate_parameters_linear(
+    # k, delta, b, focal, baseline = generate_parameters(
     #     path=rootdir,
     #     tabel_path=table_path,
     #     save_path=params_save_path,
-    #     disjoint_depth_range=disjoint_depth_range,
+    #     use_l2=False,
     # )
-    # print(params_matrix)
+    # methods = ["gaussian", "polynomial", "laplacian"]
+    # for method in methods:
+    #     ret = generate_parameters_kernel(
+    #         path=rootdir,
+    #         tabel_path=table_path,
+    #         save_path=params_save_path,
+    #         method=method
+    #     )
+
+    params_matrix, focal, baseline = generate_parameters_linear(
+        path=rootdir,
+        tabel_path=table_path,
+        save_path=params_save_path,
+        disjoint_depth_range=disjoint_depth_range,
+    )
+    print(params_matrix)
 
     # plot_prediction_curve(
     #     generate_linear_KBD_data,
@@ -47,16 +56,16 @@ if __name__ == "__main__":
     #     pseudo_range[1],
     # )
 
-    plot_prediction_curve(
-        generate_global_KBD_data,
-        (focal, baseline, k, delta, b, pseudo_range[0], pseudo_range[1]),
-        os.path.join(params_save_path, OUT_FIG_GLOBAL_PREDICTION_FILE_NAME),
-    )
+    # plot_prediction_curve(
+    #     generate_global_KBD_data,
+    #     (focal, baseline, k, delta, b, pseudo_range[0], pseudo_range[1]),
+    #     os.path.join(params_save_path, OUT_FIG_GLOBAL_PREDICTION_FILE_NAME),
+    # )
 
     # copy_all_subfolders(rootdir, copydir)
-    # parallel_copy(rootdir, copydir)
+    parallel_copy(rootdir, copydir)
 
     # # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
-    # apply_transformation_linear_parallel(
-    #     copydir, params_matrix, focal, baseline, disjoint_depth_range
-    # )
+    apply_transformation_linear_parallel(
+        copydir, params_matrix, focal, baseline, disjoint_depth_range
+    )

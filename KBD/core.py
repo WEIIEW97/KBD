@@ -1,7 +1,8 @@
 import numpy as np
 from numba import jit
 
-@jit(nopython=True)
+
+@jit(nopython=True, parallel=True)
 def modify(
     m: np.ndarray,
     h: int,
@@ -41,7 +42,7 @@ def modify_vectorize(
     return m
 
 
-@jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def modify_linear(
     m: np.ndarray,
     h: int,
@@ -53,30 +54,27 @@ def modify_linear(
 ) -> np.ndarray:
     fb = focal * baseline
     out = np.zeros_like(m)
+
     for i in range(h):
         for j in range(w):
-            if m[i, j] < disjoint_depth_range[0]:
-                out[i, j] = m[i, j]
-            elif (
-                m[i, j] >= disjoint_depth_range[0] and m[i, j] < disjoint_depth_range[1]
-            ):
-                disp0 = fb / m[i, j]
-                k_, delta_, b_, alpha_, beta_ = param_matrix[1, :]
+            depth = m[i, j]
+            if depth < disjoint_depth_range[0]:
+                out[i, j] = depth
+            elif depth < disjoint_depth_range[1]:
+                disp0 = fb / depth
+                alpha_, beta_ = param_matrix[1, 3:5]
                 disp1 = alpha_ * disp0 + beta_
                 out[i, j] = fb / disp1
-            elif (
-                m[i, j] >= disjoint_depth_range[1] and m[i, j] < disjoint_depth_range[2]
-            ):
-                disp0 = fb / m[i, j]
-                k_, delta_, b_, alpha_, beta_ = param_matrix[2, :]
+            elif depth < disjoint_depth_range[2]:
+                disp0 = fb / depth
+                k_, delta_, b_ = param_matrix[2, :3]
                 out[i, j] = k_ * fb / (disp0 + delta_) + b_
-            elif (
-                m[i, j] >= disjoint_depth_range[2] and m[i, j] < disjoint_depth_range[3]
-            ):
-                disp0 = fb / m[i, j]
-                k_, delta_, b_, alpha_, beta_ = param_matrix[3, :]
+            elif depth < disjoint_depth_range[3]:
+                disp0 = fb / depth
+                alpha_, beta_ = param_matrix[3, 3:5]
                 disp1 = alpha_ * disp0 + beta_
                 out[i, j] = fb / disp1
-            elif m[i, j] >= disjoint_depth_range[3]:
-                out[i, j] = m[i, j]
+            else:
+                out[i, j] = depth
+
     return out

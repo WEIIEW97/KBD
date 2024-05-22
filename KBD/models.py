@@ -3,6 +3,7 @@ from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
 
 from .constants import EPSILON
+from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
 
 
 def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
@@ -250,6 +251,59 @@ def model_poly_n2(actual_depth, disp, focal, baseline, reg_lambda=0.001):
 
     print("Optimization Results:")
     print("Parameters (k, delta, b):", result.x)
+    print("Minimum MSE:", result.fun)
+    if result.success:
+        print("The optimization converged successfully.")
+    else:
+        print("The optimization did not converge:", result.message)
+
+    return result
+
+
+def model_kernel_fit(actual_depth, disp, focal, baseline, method="gaussian"):
+    assert method in ("gaussian", "polynomial", "laplacian")
+
+    def mfunc(params, disp, baseline, focal):
+        if method == "gaussian":
+            k, b, mu, sigma = params
+            y_hat = k * focal * baseline / (disp + gaussian_kernel(disp, mu, sigma)) + b
+            return y_hat
+        elif method == "polynomial":
+            k, b_, a, b, c = params
+            y_hat = (
+                k * focal * baseline / (disp + polynomial_kernel_n2(disp, a, b, c)) + b_
+            )
+            return y_hat
+        elif method == "laplacian":
+            k, b, mu, sigma = params
+            y_hat = (
+                k * focal * baseline / (disp + laplacian_kernel(disp, mu, sigma)) + b
+            )
+            return y_hat
+
+    def cost_func(params, disp, baseline, focal, actual_depth):
+        predictions = mfunc(params, disp, baseline, focal)
+        mse = np.mean((predictions - actual_depth) ** 2)
+        return mse
+
+    initial_params = [1, 0, 0, 0]
+
+    if method == "gaussian":
+        initial_params = [1, 0, 0.1, 0.1]
+    elif method == "polynomial":
+        initial_params = [1, 0, 0.1, 0.1, 0.1]
+    elif method == "laplacian":
+        initial_params = [1, 0, 0.1, 0.1]
+
+    result = minimize(
+        cost_func,
+        initial_params,
+        args=(disp, baseline, focal, actual_depth),
+        method="Nelder-Mead",
+    )
+
+    print("Optimization Results:")
+    print("Parameters:", result.x)
     print("Minimum MSE:", result.fun)
     if result.success:
         print("The optimization converged successfully.")

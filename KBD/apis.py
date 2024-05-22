@@ -13,7 +13,12 @@ from .helpers import (
     retrive_file_names,
 )
 from .utils import read_table, load_raw, depth2disp, get_linear_model_params
-from .models import model_kbd, model_kbd_further_optimized, model_kbd_joint_linear
+from .models import (
+    model_kbd,
+    model_kbd_further_optimized,
+    model_kbd_joint_linear,
+    model_kernel_fit,
+)
 from .constants import (
     UINT16_MIN,
     UINT16_MAX,
@@ -33,6 +38,14 @@ from .constants import (
 )
 from .core import modify, modify_linear
 from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear
+from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
+
+
+def ordered_dict_representer(dumper, data):
+    return dumper.represent_dict(data.items())
+
+
+yaml.add_representer(OrderedDict, ordered_dict_representer)
 
 
 def generate_parameters(
@@ -98,6 +111,145 @@ def generate_parameters(
     )
 
     return k_, delta_, b_, focal, baseline
+
+
+def generate_parameters_kernel(
+    path: str,
+    tabel_path: str,
+    save_path: str,
+    method="gaussian",
+):
+    all_distances = retrive_folder_names(path)
+    mean_dists = calculate_mean_value(path, all_distances)
+    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
+    focal, baseline = map_table(df, mean_dists)
+
+    actual_depth = df[GT_DIST_NAME]
+    avg_50x50_anchor_disp = df[AVG_DISP_NAME]
+    error = df[GT_ERROR_NAME]
+
+    res = model_kernel_fit(
+        actual_depth, avg_50x50_anchor_disp, focal, baseline, method=method
+    )
+
+    common_prefix = f"{method}_"
+    param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
+    comp_path = os.path.join(save_path, common_prefix + OUT_FIG_COMP_FILE_NAME)
+    residual_path = os.path.join(save_path, common_prefix + OUT_FIG_RESIDUAL_FILE_NAME)
+    error_rate_path = os.path.join(
+        save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
+    )
+
+    if method == "gaussian":
+        k = float(np.float64(res.x[0]))
+        b = float(np.float64(res.x[1]))
+        mu = float(np.float64(res.x[2]))
+        sigma = float(np.float64(res.x[3]))
+        params_dict = {
+            "k": k,
+            "b": b,
+            "mu": mu,
+            "sigma": sigma,
+        }
+        print(params_dict)
+
+        with open(param_path, "w") as f:
+            yaml.dump(params_dict, f, default_flow_style=False)
+        print("Generating done...")
+
+        pred = (
+            k
+            * focal
+            * baseline
+            / (
+                avg_50x50_anchor_disp
+                + gaussian_kernel(avg_50x50_anchor_disp, mu, sigma)
+            )
+            + b
+        )
+        residual = pred - actual_depth
+        plot_residuals(residual, error, actual_depth, residual_path)
+        plot_error_rate(residual, error, actual_depth, error_rate_path)
+        plot_comparison(
+            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+        )
+
+        return k, b, mu, sigma, focal, baseline
+
+    if method == "polynomial":
+        k = float(np.float64(res.x[0]))
+        b_ = float(np.float64(res.x[1]))
+        a = float(np.float64(res.x[2]))
+        b = float(np.float64(res.x[3]))
+        c = float(np.float64(res.x[4]))
+
+        params_dict = {
+            "k": k,
+            "b_": b_,
+            "a": a,
+            "b": b,
+            "c": c,
+        }
+        print(params_dict)
+
+        with open(param_path, "w") as f:
+            yaml.dump(params_dict, f, default_flow_style=False)
+        print("Generating done...")
+
+        pred = (
+            k
+            * focal
+            * baseline
+            / (
+                avg_50x50_anchor_disp
+                + polynomial_kernel_n2(avg_50x50_anchor_disp, a, b, c)
+            )
+            + b_
+        )
+        residual = pred - actual_depth
+        plot_residuals(residual, error, actual_depth, residual_path)
+        plot_error_rate(residual, error, actual_depth, error_rate_path)
+        plot_comparison(
+            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+        )
+
+        return k, b_, a, b, c, focal, baseline
+
+    if method == "laplacian":
+        k = float(np.float64(res.x[0]))
+        b = float(np.float64(res.x[1]))
+        mu = float(np.float64(res.x[2]))
+        sigma = float(np.float64(res.x[3]))
+        params_dict = {
+            "k": k,
+            "b": b,
+            "mu": mu,
+            "sigma": sigma,
+        }
+        print(params_dict)
+
+        with open(param_path, "w") as f:
+            yaml.dump(params_dict, f, default_flow_style=False)
+        print("Generating done...")
+
+        pred = (
+            k
+            * focal
+            * baseline
+            / (
+                avg_50x50_anchor_disp
+                + laplacian_kernel(avg_50x50_anchor_disp, mu, sigma)
+            )
+            + b
+        )
+        residual = pred - actual_depth
+        plot_residuals(residual, error, actual_depth, residual_path)
+        plot_error_rate(residual, error, actual_depth, error_rate_path)
+        plot_comparison(
+            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+        )
+
+        return k, b, mu, sigma, focal, baseline
 
 
 def apply_transformation(
