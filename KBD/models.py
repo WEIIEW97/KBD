@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
-from scipy.optimize import differential_evolution
+from scipy.optimize import differential_evolution, least_squares
 from bayes_opt import BayesianOptimization
 
 from .constants import EPSILON
@@ -61,13 +61,17 @@ def model_kbd(
                 / actual_depth[actual_depth < 1000]
             )
         )
-        error_greater_than_1500= np.mean(
+        error_greater_than_1500 = np.mean(
             np.abs(
                 (predictions[actual_depth >= 1500] - actual_depth[actual_depth >= 1500])
                 / actual_depth[actual_depth >= 1500]
             )
         )
-        return mse + 500 * max(0, error_less_than_1000 - 0.015) + 500 * max(0, error_greater_than_1500 - 0.035)
+        return (
+            mse
+            + 500 * max(0, error_less_than_1000 - 0.015)
+            + 500 * max(0, error_greater_than_1500 - 0.035)
+        )
 
     # Initial guess for the parameters and bounds
     initial_params = [1.0, 0.01, 10]  # Starting values for k, delta, b
@@ -561,3 +565,76 @@ def model_kbd_bayes(
         print("Optimizer max does not contain 'params' key.")
 
     return result
+
+
+def model(disp, focal, baseline, k, delta, b):
+    return k * (focal * baseline) / (disp + delta) + b
+
+
+class TrustRegionReflectiveOptimizer:
+    def __init__(
+        self,
+        gt,
+        est,
+        focal,
+        baseline,
+        local_restriction_weights=1000,
+        restriction_loc=1000,
+    ):
+        self.gt = gt
+        self.est = est
+        self.focal = focal
+        self.baseline = baseline
+        self.local_restriction_weights = local_restriction_weights
+        self.restriction_loc = restriction_loc
+
+    def loss(self, params):
+        k, delta, b = params
+        pred = model(self.est, self.focal, self.baseline, k, delta, b)
+        residuals = pred - self.gt
+        local_restric = np.abs(
+            (
+                pred[self.gt < self.restriction_loc]
+                - self.gt[self.gt < self.restriction_loc]
+            )
+            / self.gt[self.gt < self.restriction_loc]
+        )
+        return np.concatenate(
+            (residuals, self.local_restriction_weights * np.maximum(0, local_restric))
+        )
+
+    def optimize(self, initial_params, bounds):
+        result = least_squares(self.loss, initial_params, bounds=bounds)
+        return result
+
+    def run(
+        self, initial_params=[1.0, 0, 0], bounds=([0, -100, -1000], [2000, 100, 1000])
+    ):
+        result = self.optimize(initial_params, bounds)
+        print("Optimization Result:", result)
+
+        if result.success:
+            optimized_params = result.x
+            k, delta, b = optimized_params
+
+            pred = model(self.est, self.focal, self.baseline, k, delta, b)
+
+            mse = np.mean((pred - self.gt) ** 2)
+            error_less_than_1000 = np.mean(
+                np.abs(
+                    (
+                        pred[self.gt < self.restriction_loc]
+                        - self.gt[self.gt < self.restriction_loc]
+                    )
+                    / self.gt[self.gt < self.restriction_loc]
+                )
+            )
+
+            print("MSE:", mse)
+            print("Error less than 1000:", error_less_than_1000)
+            print("Optimized Parameters:", optimized_params)
+
+            residual = pred - self.gt
+            return k, delta, b, residual
+        else:
+            print("Optimization failed.")
