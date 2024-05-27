@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
+from scipy.optimize import differential_evolution
+from bayes_opt import BayesianOptimization
 
 from .constants import EPSILON
 from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
@@ -52,8 +54,20 @@ def model_kbd(
     # Define the cost function (MSE)
     def cost_func(params, disp_norm, baseline, focal, actual_depth):
         predictions = mfunc(params, disp_norm, baseline, focal)
-        # return np.mean((actual_depth - predictions) ** 2)
-        return np.mean((actual_depth - predictions) ** 2)
+        mse = np.mean((actual_depth - predictions) ** 2)
+        error_less_than_1000 = np.mean(
+            np.abs(
+                (predictions[actual_depth < 1000] - actual_depth[actual_depth < 1000])
+                / actual_depth[actual_depth < 1000]
+            )
+        )
+        error_greater_than_1500= np.mean(
+            np.abs(
+                (predictions[actual_depth >= 1500] - actual_depth[actual_depth >= 1500])
+                / actual_depth[actual_depth >= 1500]
+            )
+        )
+        return mse + 500 * max(0, error_less_than_1000 - 0.015) + 500 * max(0, error_greater_than_1500 - 0.035)
 
     # Initial guess for the parameters and bounds
     initial_params = [1.0, 0.01, 10]  # Starting values for k, delta, b
@@ -348,3 +362,202 @@ def global_KBD_func(x, focal, baseline, k, delta, b):
         return x
     disp = FB / x
     return k * FB / (disp + delta) + b
+
+
+def model_kbd_v2(
+    actual_depth: np.ndarray,
+    disp: np.ndarray,
+    focal: float,
+    baseline: float,
+    weights=100,
+):
+    # disp_norm = normalize(disp)
+    disp_norm = disp
+
+    def mfunc(params, disp_norm, baseline, focal):
+        k, delta, b = params
+        y_hat = k * focal * baseline / (disp_norm + delta) + b
+        return y_hat
+
+    # Define the cost function (MSE)
+    def cost_func(params, disp_norm, baseline, focal, actual_depth):
+        predictions = mfunc(params, disp_norm, baseline, focal)
+        mse = np.mean((actual_depth - predictions) ** 2)
+        error_less_than_1k = np.mean(
+            np.abs(
+                (predictions[actual_depth < 1000] - actual_depth[actual_depth < 1000])
+                / actual_depth[actual_depth < 1000]
+            )
+        )
+        return mse + weights * max(0, error_less_than_1k - 0.02)
+
+    # Initial guess for the parameters and bounds
+    initial_params = [1.0, 0.01, 10]  # Starting values for k, delta, b
+    # bounds = [(0.1, 100), (0, 1), (-50, 50)]  # Expanded bounds for parameters
+
+    result = minimize(
+        cost_func,
+        initial_params,
+        args=(disp_norm, baseline, focal, actual_depth),
+        method="Nelder-Mead",
+    )
+
+    print("Optimization Results:")
+    print("Parameters (k, delta, b):", result.x)
+    print("Minimum MSE:", result.fun)
+    if result.success:
+        print("The optimization converged successfully.")
+    else:
+        print("The optimization did not converge:", result.message)
+
+    return result
+
+
+def model_kbd_v3(
+    actual_depth: np.ndarray,
+    disp: np.ndarray,
+    focal: float,
+    baseline: float,
+    weights=500,
+):
+
+    def mfunc(params, disp_norm, baseline, focal):
+        k, delta, b = params
+        y_hat = k * focal * baseline / (disp_norm + delta) + b
+        return y_hat
+
+    # Define the cost function (MSE)
+    def cost_func(params, disp_norm, baseline, focal, actual_depth):
+        predictions = mfunc(params, disp_norm, baseline, focal)
+        mse = np.mean((actual_depth - predictions) ** 2)
+        error_less_than_1k = np.mean(
+            np.abs(
+                (predictions[actual_depth < 1000] - actual_depth[actual_depth < 1000])
+                / actual_depth[actual_depth < 1000]
+            )
+        )
+        return mse + weights * max(0, error_less_than_1k - 0.02)
+
+    # Initial guess for the parameters and bounds
+    bounds = [(-1, 1), (-1, 1), (-100, 100)]
+    result = differential_evolution(
+        cost_func, bounds, args=(actual_depth, disp, focal, baseline), maxiter=2000
+    )
+
+    print("Optimization Results:")
+    print("Parameters (k, delta, b):", result.x)
+    print("Minimum MSE:", result.fun)
+    if result.success:
+        print("The optimization converged successfully.")
+    else:
+        print("The optimization did not converge:", result.message)
+
+    return result
+
+
+def model_kbd_v4(
+    actual_depth: np.ndarray,
+    disp: np.ndarray,
+    focal: float,
+    baseline: float,
+    weights=500,
+):
+    def mfunc(params, disp_norm, baseline, focal):
+        k, delta, b = params
+        y_hat = k * focal * baseline / (disp_norm + delta) + b
+        return y_hat
+
+    # Define the cost function (MSE)
+    def cost_func(params, disp_norm, baseline, focal, actual_depth):
+        predictions = mfunc(params, disp_norm, baseline, focal)
+        mse = np.mean((actual_depth - predictions) ** 2)
+        error_less_than_1k = np.mean(
+            np.abs(
+                (predictions[actual_depth < 1000] - actual_depth[actual_depth < 1000])
+                / actual_depth[actual_depth < 1000]
+            )
+        )
+        return mse + weights * max(0, error_less_than_1k - 0.02)
+
+    # Initial guess for the parameters and bounds
+    bounds = [(-1000, 1000), (-100, 100), (-1000, 1000)]
+    result_de = differential_evolution(
+        cost_func, bounds, args=(actual_depth, disp, focal, baseline), maxiter=2000
+    )
+
+    optimized_params_de = result_de.x
+
+    result_local = minimize(
+        cost_func, optimized_params_de, args=(actual_depth, disp, focal, baseline)
+    )
+
+    print("Optimization Results:")
+    print("Parameters (k, delta, b):", result_local.x)
+    print("Minimum MSE:", result_local.fun)
+    if result_local.success:
+        print("The optimization converged successfully.")
+    else:
+        print("The optimization did not converge:", result_local.message)
+
+    return result_local
+
+
+def model_kbd_bayes(
+    actual_depth: np.ndarray,
+    disp: np.ndarray,
+    focal: float,
+    baseline: float,
+    weights=500,
+):
+    def model_updated(disp, focal, baseline, k, delta, b):
+        return k * (focal * baseline) / (disp + delta) + b
+
+    def make_bayes_opt_function(avg_disp, focal, baseline, actual_depth, weights):
+        def bayes_opt_function(k, delta, b):
+            predicted_depth = model_updated(avg_disp, focal, baseline, k, delta, b)
+            mse = np.mean((predicted_depth - actual_depth) ** 2)
+            error_less_than_1000 = np.mean(
+                np.abs(
+                    (
+                        predicted_depth[actual_depth < 1000]
+                        - actual_depth[actual_depth < 1000]
+                    )
+                    / actual_depth[actual_depth < 1000]
+                )
+            )
+            return -(mse + weights * max(0, error_less_than_1000 - 0.02))
+
+        return bayes_opt_function
+
+    bayes_opt_function = make_bayes_opt_function(
+        disp, focal, baseline, actual_depth, weights
+    )
+
+    pbounds = {"k": (-1000, 1000), "delta": (-100, 100), "b": (-1000, 1000)}
+
+    optimizer = BayesianOptimization(
+        f=bayes_opt_function,
+        pbounds=pbounds,
+        random_state=1,
+    )
+
+    print("Optimizer Max:", optimizer.max)
+    result = None
+
+    if "params" in optimizer.max:
+        optimized_params_bayes = optimizer.max["params"]
+        k_bayes, delta_bayes, b_bayes = (
+            optimized_params_bayes["k"],
+            optimized_params_bayes["delta"],
+            optimized_params_bayes["b"],
+        )
+        print("Optimized Parameters:", optimized_params_bayes)
+        result = (
+            optimized_params_bayes["k"],
+            optimized_params_bayes["delta"],
+            optimized_params_bayes["b"],
+        )
+    else:
+        print("Optimizer max does not contain 'params' key.")
+
+    return result

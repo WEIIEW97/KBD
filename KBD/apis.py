@@ -18,6 +18,9 @@ from .models import (
     model_kbd_further_optimized,
     model_kbd_joint_linear,
     model_kernel_fit,
+    model_kbd_v3,
+    model_kbd_v4,
+    model_kbd_bayes,
 )
 from .constants import (
     UINT16_MIN,
@@ -109,6 +112,73 @@ def generate_parameters(
     plot_comparison(
         actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
     )
+
+    return k_, delta_, b_, focal, baseline
+
+
+def generate_parameters_adv(path: str, tabel_path: str, save_path: str, method="evo"):
+    all_distances = retrive_folder_names(path)
+    mean_dists = calculate_mean_value(path, all_distances)
+    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
+    focal, baseline = map_table(df, mean_dists)
+
+    actual_depth = df[GT_DIST_NAME].values
+    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+    error = df[GT_ERROR_NAME].values
+
+    assert method in ("evo", "bayes")
+
+    res = None
+
+    if method == "evo":
+        res = model_kbd_v3(actual_depth, avg_50x50_anchor_disp, focal, baseline)
+    elif method == "bayes":
+        res = model_kbd_bayes(actual_depth, avg_50x50_anchor_disp, focal, baseline)
+
+    common_prefix = f"{method}_"
+    param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
+    comp_path = os.path.join(save_path, common_prefix + OUT_FIG_COMP_FILE_NAME)
+    residual_path = os.path.join(save_path, common_prefix + OUT_FIG_RESIDUAL_FILE_NAME)
+    error_rate_path = os.path.join(
+        save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
+    )
+
+    # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
+    if method == "evo":
+        k_ = float(np.float64(res.x[0]))
+        delta_ = float(np.float64(res.x[1]))
+        b_ = float(np.float64(res.x[2]))
+    elif method == "bayes":
+        k_ = float(np.float64(res[0]))
+        delta_ = float(np.float64(res[1]))
+        b_ = float(np.float64(res[2]))
+
+    params_dict = {
+        "k": k_,
+        "delta": delta_,
+        "b": b_,
+    }
+    print(params_dict)
+
+    with open(param_path, "w") as f:
+        yaml.dump(params_dict, f, default_flow_style=False)
+    print("Generating done...")
+
+    pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
+    residual = pred - actual_depth
+    plot_residuals(residual, error, actual_depth, residual_path)
+    plot_error_rate(residual, error, actual_depth, error_rate_path)
+    plot_comparison(
+        actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+    )
+    error_less_than_1000_bayes = np.mean(
+        np.abs(
+            (pred[actual_depth < 1000] - actual_depth[actual_depth < 1000])
+            / actual_depth[actual_depth < 1000]
+        )
+    )
+
+    print(f"error in <1000 is {error}")
 
     return k_, delta_, b_, focal, baseline
 

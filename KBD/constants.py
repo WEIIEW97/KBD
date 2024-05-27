@@ -1,6 +1,6 @@
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "N09ASH24DH0057"
+CAMERA_TYPE = "N09ASH24DH0047"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640

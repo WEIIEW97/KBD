@@ -106,7 +106,7 @@ def plot_error_rate(
     plt.show()
 
 
-def plot_comparison(x, y1, y2, save_path):
+def plot_comparison(x, y1, y2, save_path=None):
     fig, ax = plt.subplots()
     ax.plot(x, y1, label="measured data", marker="o")
     ax.plot(x, y2, label="fitted data", marker="x")
