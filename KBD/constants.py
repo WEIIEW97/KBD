@@ -1,6 +1,6 @@
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "N09ASH24DH0047"
+CAMERA_TYPE = "N09ASH24DH0057"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640
@@ -8,7 +8,7 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 
-ANCHOR_POINT = [250, 378]
+ANCHOR_POINT = [H//2, W//2]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"

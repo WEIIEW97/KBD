@@ -24,7 +24,7 @@ yaml.add_representer(OrderedDict, ordered_dict_representer)
 
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "N09ASH24DH0047"
+CAMERA_TYPE = "N09ASH24DH0057"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640
@@ -32,10 +32,11 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 
-ANCHOR_POINT = [250, 378]
+ANCHOR_POINT = [H//2, W//2]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
+AVG_ERROR_NAME = "avg_depth_50x50_anchor_absolute_error"
 GT_DIST_NAME = "actual_depth"
 GT_ERROR_NAME = "absolute_error"
 FOCAL_NAME = "focal"
@@ -177,6 +178,7 @@ def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
     baseline = df[BASLINE_NAME].iloc[0]  # assume basline value is the same
 
     df[AVG_DISP_NAME] = focal * baseline / df[AVG_DIST_NAME]
+    df[AVG_ERROR_NAME] = df[AVG_DIST_NAME] - df[GT_DIST_NAME]
 
     return focal, baseline
 
@@ -1566,21 +1568,22 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     rootdir = f"{cwd}/data/{CAMERA_TYPE}/image_data"
     copydir = f"{cwd}/data/{CAMERA_TYPE}/image_data_transformed_linear"
-    table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-17.xlsx"
+    table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-22.xlsx"
     params_save_path = f"{cwd}/data/{CAMERA_TYPE}"
     l2_regularization_param = (0.01,)
     disjoint_depth_range = (403, 600, 2700, 2907)
     pseudo_range = (0, 5000)
 
     ################# save new df to csv
-    # all_distances = retrive_folder_names(rootdir)
-    # mean_dists = calculate_mean_value(rootdir, all_distances)
-    # df = read_table(table_path, pair_dict=MAPPED_PAIR_DICT)
-    # focal, baseline = map_table(
-    #     df,
-    #     mean_dists,
-    #     "D:/william/codes/depth-quality-fitting/data/N9_concat/dq_0513.csv",
-    # )
+    all_distances = retrive_folder_names(rootdir)
+    mean_dists = calculate_mean_value(rootdir, all_distances)
+    df = read_table(table_path, pair_dict=MAPPED_PAIR_DICT)
+    focal, baseline = map_table(
+        df,
+        mean_dists,
+    )
+    print(df)
+    df.to_csv(f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-22.csv")
     #################
 
     # k, delta, b, focal, baseline = generate_parameters(
@@ -1590,24 +1593,24 @@ if __name__ == "__main__":
     #     use_l2=False,
     # )
 
-    params_matrix, focal, baseline = generate_parameters_linear(
-        path=rootdir,
-        tabel_path=table_path,
-        save_path=params_save_path,
-        disjoint_depth_range=disjoint_depth_range,
-    )
-    print(params_matrix)
-    plot_prediction_curve(
-        generate_linear_KBD_data,
-        (focal, baseline, params_matrix, disjoint_depth_range),
-        os.path.join(params_save_path, OUT_FIG_PREDICTION_FILE_NAME),
-        pseudo_range[0],
-        pseudo_range[1],
-    )
-    # copy_all_subfolders(rootdir, copydir)
-    parallel_copy(rootdir, copydir)
+    # params_matrix, focal, baseline = generate_parameters_linear(
+    #     path=rootdir,
+    #     tabel_path=table_path,
+    #     save_path=params_save_path,
+    #     disjoint_depth_range=disjoint_depth_range,
+    # )
+    # print(params_matrix)
+    # plot_prediction_curve(
+    #     generate_linear_KBD_data,
+    #     (focal, baseline, params_matrix, disjoint_depth_range),
+    #     os.path.join(params_save_path, OUT_FIG_PREDICTION_FILE_NAME),
+    #     pseudo_range[0],
+    #     pseudo_range[1],
+    # )
+    # # copy_all_subfolders(rootdir, copydir)
+    # parallel_copy(rootdir, copydir)
 
-    # # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
-    apply_transformation_linear_parallel(
-        copydir, params_matrix, focal, baseline, disjoint_depth_range
-    )
+    # # # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
+    # apply_transformation_linear_parallel(
+    #     copydir, params_matrix, focal, baseline, disjoint_depth_range
+    # )

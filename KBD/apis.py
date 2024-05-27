@@ -344,11 +344,7 @@ def generate_parameters_linear(
     )
 
     param_path = os.path.join(save_path, LINEAR_OUT_PARAMS_FILE_NAME)
-    # comp_path = os.path.join(save_path, OUT_FIG_COMP_FILE_NAME)
-    # residual_path = os.path.join(save_path, OUT_FIG_RESIDUAL_FILE_NAME)
-    # error_rate_path = os.path.join(save_path, OUT_FIG_ERROR_RATE_FILE_NAME)
 
-    # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
     k_ = float(np.float64(res.x[0]))
     delta_ = float(np.float64(res.x[1]))
     b_ = float(np.float64(res.x[2]))
@@ -357,10 +353,6 @@ def generate_parameters_linear(
     linear_model2_params = get_linear_model_params(linear_model2)
 
     ### do not support the shared pointer
-    # default_linear_model = LinearRegression()
-    # default_linear_model.coef_ = np.array([1.0])
-    # default_linear_model.intercept_ = np.array([0.0])
-    # default_linear_model_params = get_linear_model_params(default_linear_model)
 
     def create_default_linear_model_params():
         default_linear_model = LinearRegression()
@@ -371,7 +363,7 @@ def generate_parameters_linear(
     params_dict = OrderedDict(
         [
             (
-                f"{0}-{disjoint_depth_range[0]}",
+                f"{0}-{disjoint_depth_range[0]-200}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -382,7 +374,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}",
+                f"{disjoint_depth_range[0]-200}-{disjoint_depth_range[0]}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -393,7 +385,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[1]}-{disjoint_depth_range[2]}",
+                f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}",
                 OrderedDict(
                     [
                         ("k", k_),
@@ -404,7 +396,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[2]}-{disjoint_depth_range[3]}",
+                f"{disjoint_depth_range[1]}-{disjoint_depth_range[1]+200}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -415,7 +407,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[3]}-{np.inf}",
+                f"{disjoint_depth_range[1]+200}-{np.inf}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -486,11 +478,18 @@ def apply_transformation_linear(
 
 
 def transformer_linear_impl(
-    full_path, H, W, focal, baseline, params_matrix, disjoint_depth_range
+    full_path,
+    H,
+    W,
+    focal,
+    baseline,
+    params_matrix,
+    disjoint_depth_range,
+    compensate_dist,
 ):
     raw = load_raw(full_path, H, W)
     depth = modify_linear(
-        raw, H, W, focal, baseline, params_matrix, disjoint_depth_range
+        raw, H, W, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist
     )
     depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
     depth = depth.astype(np.uint16)
@@ -503,7 +502,8 @@ def apply_transformation_linear_parallel(
     params_matrix: np.ndarray,
     focal: float,
     baseline: float,
-    disjoint_depth_range: tuple,
+    disjoint_depth_range: tuple | list,
+    compensate_dist: float,
     max_workers: int = 8,
 ) -> None:
     folders = retrive_folder_names(path)
@@ -524,6 +524,7 @@ def apply_transformation_linear_parallel(
                         baseline,
                         params_matrix,
                         disjoint_depth_range,
+                        compensate_dist,
                     )
                 )
 

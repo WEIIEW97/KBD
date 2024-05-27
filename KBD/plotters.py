@@ -656,16 +656,29 @@ def plot_all_in_one(gt, est, focal, baseline, depth_ranges, res):
 
 
 def plot_linear(
-    gt, est, error, focal, baseline, res, disjoint_depth_range, save_path=None
+    gt,
+    est,
+    error,
+    focal,
+    baseline,
+    res,
+    disjoint_depth_range,
+    compensate_dist=200,
+    save_path=None,
 ):
     linear_model, optimization_result, linear_model2 = res
 
     # Filter data where actual_depth >= 600
-    mask0 = np.where(gt < disjoint_depth_range[0])
-    mask1 = np.where((gt >= disjoint_depth_range[0]) & (gt <= disjoint_depth_range[1]))
-    mask2 = (gt > disjoint_depth_range[1]) & (gt <= disjoint_depth_range[2])
-    mask3 = (gt > disjoint_depth_range[2]) & (gt <= disjoint_depth_range[3])
-    mask4 = gt > disjoint_depth_range[3]
+    mask0 = np.where(gt < disjoint_depth_range[0] - compensate_dist)
+    mask1 = np.where(
+        (gt >= (disjoint_depth_range[0] - compensate_dist))
+        & (gt <= disjoint_depth_range[0])
+    )
+    mask2 = (gt > disjoint_depth_range[0]) & (gt <= disjoint_depth_range[1])
+    mask3 = (gt > disjoint_depth_range[1]) & (
+        gt <= disjoint_depth_range[1] + compensate_dist
+    )
+    mask4 = gt > (disjoint_depth_range[1] + compensate_dist)
 
     filtered_disp0 = est[mask0]
     filtered_depth0 = gt[mask0]
@@ -699,11 +712,14 @@ def plot_linear(
     pred3 = focal * baseline / pred_3_disp
     residual3 = pred3 - filtered_depth3
 
-    filtered_disp4 = est[mask4]
-    filtered_depth4 = gt[mask4]
-    error4 = error[mask4]
-    pred4 = gt[mask4]
-    residual4 = pred4 - filtered_depth4
+    plot_fig_4 = False
+    if np.sum(mask4) > 0:
+        plot_fig_4 = True
+        filtered_disp4 = est[mask4]
+        filtered_depth4 = gt[mask4]
+        error4 = error[mask4]
+        pred4 = gt[mask4]
+        residual4 = pred4 - filtered_depth4
 
     if save_path is not None:
         LINEAR_COMMON = "linear_"
@@ -759,7 +775,7 @@ def plot_linear(
     ax1.hlines(
         0,
         xmin=0,
-        xmax=np.max(filtered_depth4),
+        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
         colors="red",
         linestyles="dashed",
     )
@@ -829,31 +845,32 @@ def plot_linear(
         alpha=0.5,
         label="Actual Error Rate",
     )
-    ax2.scatter(
-        filtered_depth4,
-        residual4 / filtered_depth4 * 100,
-        color="cyan",
-        alpha=0.5,
-        label="Unchanged Error Rate",
-    )
-    ax2.scatter(
-        filtered_depth4,
-        error4 / filtered_depth4 * 100,
-        color="black",
-        alpha=0.5,
-        label="Actual Error Rate",
-    )
+    if plot_fig_4:
+        ax2.scatter(
+            filtered_depth4,
+            residual4 / filtered_depth4 * 100,
+            color="cyan",
+            alpha=0.5,
+            label="Unchanged Error Rate",
+        )
+        ax2.scatter(
+            filtered_depth4,
+            error4 / filtered_depth4 * 100,
+            color="black",
+            alpha=0.5,
+            label="Actual Error Rate",
+        )
     ax2.hlines(
         0,
         xmin=0,
-        xmax=np.max(filtered_depth4),
+        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
         colors="red",
         linestyles="dashed",
     )
     ax2.hlines(
         2,
         xmin=0,
-        xmax=np.max(filtered_depth4),
+        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
         colors="pink",
         linestyles="dashed",
         label="2(%) error Line",
@@ -861,7 +878,7 @@ def plot_linear(
     ax2.hlines(
         -2,
         xmin=0,
-        xmax=np.max(filtered_depth4),
+        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
         colors="pink",
         linestyles="dashed",
         label="2(%) error Line",
@@ -869,7 +886,7 @@ def plot_linear(
     ax2.hlines(
         4,
         xmin=0,
-        xmax=np.max(filtered_depth4),
+        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
         colors="cyan",
         linestyles="dashed",
         label="4(%) error Line",
@@ -877,7 +894,7 @@ def plot_linear(
     ax2.hlines(
         -4,
         xmin=0,
-        xmax=np.max(filtered_depth4),
+        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
         colors="cyan",
         linestyles="dashed",
         label="4(%) error Line",
@@ -898,38 +915,39 @@ def plot_linear(
     ax3.plot(
         gt[mask0],
         pred0,
-        label=f"Measured Data (< {disjoint_depth_range[0]})",
+        label=f"Measured Data (< {disjoint_depth_range[0]-compensate_dist})",
         marker="o",
         color="red",
     )
     ax3.plot(
         filtered_depth1,
         pred1,
-        label=f"Linear Model ({disjoint_depth_range[0]}-{disjoint_depth_range[1]})",
+        label=f"Linear Model ({disjoint_depth_range[0]-compensate_dist}-{disjoint_depth_range[0]})",
         marker="x",
         color="blue",
     )
     ax3.plot(
         filtered_depth2,
         pred2,
-        label=f"Optimized Model (> {disjoint_depth_range[1]})",
+        label=f"Optimized Model ({disjoint_depth_range[0]}-{disjoint_depth_range[1]})",
         marker="x",
         color="green",
     )
     ax3.plot(
         filtered_depth3,
         pred3,
-        label=f"Linear Model ({disjoint_depth_range[2]}-{disjoint_depth_range[3]})",
+        label=f"Linear Model ({disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist})",
         marker="x",
         color="cyan",
     )
-    ax3.plot(
-        gt[mask4],
-        pred4,
-        label=f"Measured Data (>{disjoint_depth_range[3]})",
-        marker="o",
-        color="red",
-    )
+    if plot_fig_4:
+        ax3.plot(
+            gt[mask4],
+            pred4,
+            label=f"Measured Data (>{disjoint_depth_range[1]+compensate_dist})",
+            marker="o",
+            color="red",
+        )
 
     ax3.set_xlabel("Ground Truth Depth (m)")
     ax3.set_ylabel("Depth (m)")

@@ -122,7 +122,9 @@ def model_kbd_further_optimized(
     return result
 
 
-def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_range):
+def model_kbd_joint_linear(
+    actual_depth, disp, focal, baseline, disjoint_depth_range, compensate_dist=200
+):
     """
     Fit the KBD model to the data where actual_depth >= 500.
 
@@ -138,8 +140,8 @@ def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_r
 
     # find the range to calculate KBD params within
     KBD_mask = np.where(
-        (actual_depth >= disjoint_depth_range[1])
-        & (actual_depth <= disjoint_depth_range[2])
+        (actual_depth > disjoint_depth_range[0])
+        & (actual_depth < disjoint_depth_range[1])
     )
     KBD_disp = disp[KBD_mask]
     KBD_detph = actual_depth[KBD_mask]
@@ -154,30 +156,33 @@ def model_kbd_joint_linear(actual_depth, disp, focal, baseline, disjoint_depth_r
     KBD_pred_depth_max = k_ * FB / (KBD_disp_min + delta_) + b_
     KBD_pred_depth_min = k_ * FB / (KBD_disp_max + delta_) + b_
 
-    KBD_disp_gt_max = FB / KBD_pred_depth_min
-    KBD_disp_gt_min = FB / KBD_pred_depth_max
-    max_joint_disp_gt = FB / disjoint_depth_range[0]
-    min_joint_disp_gt = FB / disjoint_depth_range[3]
-    max_joint_disp = disp[np.where(actual_depth == disjoint_depth_range[0])]
-    min_joint_disp = disp[np.where(actual_depth == disjoint_depth_range[3])]
+    KBD_pred_disp_min = FB / KBD_pred_depth_max
+    KBD_pred_disp_max = FB / KBD_pred_depth_min
+
+    print(
+        f"KBD model prediction on {KBD_disp_max} is {KBD_pred_depth_min}, where GT detph is {FB / KBD_disp_max} and prediction disp is {KBD_pred_disp_max}"
+    )
+    print(
+        f"KBD model prediction on {KBD_disp_min} is {KBD_pred_depth_max}, where GT detph is {FB / KBD_disp_min} and prediction disp is {KBD_pred_disp_min}"
+    )
+
+    smooth_dist = compensate_dist
+
+    pre_depth_joint = KBD_pred_depth_min - smooth_dist
+    after_depth_joint = KBD_pred_depth_max + smooth_dist
+
+    pre_disp_joint = FB / pre_depth_joint
+    after_disp_joint = FB / after_depth_joint
 
     linear_model1 = LinearRegression()
-    X1 = np.array([max_joint_disp[0], KBD_disp_max])
-    y1 = np.array([max_joint_disp_gt, KBD_disp_gt_max])
+    X1 = np.array([pre_disp_joint, KBD_disp_max])
+    y1 = np.array([pre_disp_joint, KBD_pred_disp_max])
     linear_model1.fit(X1.reshape(-1, 1), y1)
 
-    # if (KBD_disp_gt_max - max_joint_disp_gt) <= 0 or (KBD_disp_max - max_joint_disp) <= 0:
-    #     linear_model1.coef_ = np.array([1])
-    #     linear_model1.intercept_ = np.array(0)
-
     linear_model2 = LinearRegression()
-    X2 = np.array([min_joint_disp[0], KBD_disp_min])
-    y2 = np.array([min_joint_disp_gt, KBD_disp_gt_min])
+    X2 = np.array([KBD_disp_min, after_disp_joint])
+    y2 = np.array([KBD_pred_disp_min, after_disp_joint])
     linear_model2.fit(X2.reshape(-1, 1), y2)
-
-    # if (KBD_disp_gt_min - min_joint_disp_gt) <= 0 or (KBD_disp_min - min_joint_disp) <= 0:
-    #     linear_model2.coef_ = np.array([1])
-    #     linear_model2.intercept_ = np.array(0)
 
     return linear_model1, res, linear_model2
 
@@ -314,7 +319,7 @@ def model_kernel_fit(actual_depth, disp, focal, baseline, method="gaussian"):
 
 
 def linear_KBD_piecewise_func(
-    x, focal, baseline, params_matrix, disjoint_depth_range
+    x, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist=200
 ) -> float:
     k1, delta1, b1, coef1, intercept1 = params_matrix[1]
     k2, delta2, b2, coef2, intercept2 = params_matrix[2]
@@ -325,13 +330,13 @@ def linear_KBD_piecewise_func(
         return x
     disp = FB / x
 
-    if x < disjoint_depth_range[0]:
+    if x < disjoint_depth_range[0] - compensate_dist:
         return x
-    elif disjoint_depth_range[0] <= x < disjoint_depth_range[1]:
+    elif disjoint_depth_range[0] - compensate_dist <= x < disjoint_depth_range[0]:
         return FB / (coef1 * disp + intercept1)
-    elif disjoint_depth_range[1] <= x < disjoint_depth_range[2]:
+    elif disjoint_depth_range[0] <= x < disjoint_depth_range[1]:
         return k2 * FB / (disp + delta2) + b2
-    elif disjoint_depth_range[2] <= x < disjoint_depth_range[3]:
+    elif disjoint_depth_range[1] <= x < disjoint_depth_range[1] + compensate_dist:
         return FB / (coef3 * disp + intercept3)
     else:
         return x
