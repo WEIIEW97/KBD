@@ -29,7 +29,7 @@ def plot_residuals(
     plt.legend()
     if save_path:
         plt.savefig(save_path)
-    plt.show()
+    # # plt.show()
 
     # Print the mean of the residuals
     mean_residuals = np.mean(residuals)
@@ -103,7 +103,7 @@ def plot_error_rate(
     plt.legend()
     if save_path:
         plt.savefig(save_path)
-    plt.show()
+    # # plt.show()
 
 
 def plot_comparison(x, y1, y2, save_path=None):
@@ -114,7 +114,7 @@ def plot_comparison(x, y1, y2, save_path=None):
     ax.legend()
     if save_path:
         plt.savefig(save_path)
-    plt.show()
+    # # plt.show()
 
 
 def plot_metric(ax, data, metric, title, xlabel, ylabel, zero_line=True, legend=True):
@@ -247,7 +247,7 @@ def plot_unified_results1(gt, est, error, focal, baseline, depth_ranges, res):
             zero_line=(metric in ["residual", "error rate"]),
             legend=(metric in ["depth comparison", "unified comparison"]),
         )
-        plt.show()
+        # plt.show()
 
 
 def plot_unified_results(gt, est, error, focal, baseline, depth_ranges, res):
@@ -373,7 +373,7 @@ def plot_unified_results(gt, est, error, focal, baseline, depth_ranges, res):
     ax4.legend()
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
@@ -450,7 +450,7 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     ax1.set_xlabel("Ground Truth Depth (m)")
     ax1.set_ylabel("Residuals")
     ax1.legend()
-    plt.show()
+    # plt.show()
 
     # Error rate plot
     fig2, ax2 = plt.subplots(figsize=(6, 6))
@@ -539,7 +539,7 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     ax2.set_xlabel("Ground Truth Depth (m)")
     ax2.set_ylabel("Error Rate (%)")
     ax2.legend()
-    plt.show()
+    # plt.show()
 
     # Depth comparison plot
     fig3, ax3 = plt.subplots(figsize=(6, 6))
@@ -579,7 +579,7 @@ def plot_linear(gt, est, error, focal, baseline, res, disjoint_depth_range):
     ax3.set_ylabel("Depth (m)")
     ax3.set_title("Comparison of Measured and Fitted Depths")
     ax3.legend()
-    plt.show()
+    # plt.show()
 
 
 def plot_all_in_one(gt, est, focal, baseline, depth_ranges, res):
@@ -652,7 +652,7 @@ def plot_all_in_one(gt, est, focal, baseline, depth_ranges, res):
             ax.legend()
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def plot_linear(
@@ -663,7 +663,8 @@ def plot_linear(
     baseline,
     res,
     disjoint_depth_range,
-    compensate_dist=200,
+    compensate_dist,
+    scaling_factor,
     save_path=None,
 ):
     linear_model, optimization_result, linear_model2 = res
@@ -676,9 +677,9 @@ def plot_linear(
     )
     mask2 = (gt > disjoint_depth_range[0]) & (gt <= disjoint_depth_range[1])
     mask3 = (gt > disjoint_depth_range[1]) & (
-        gt <= disjoint_depth_range[1] + compensate_dist
+        gt <= disjoint_depth_range[1] + compensate_dist * scaling_factor
     )
-    mask4 = gt > (disjoint_depth_range[1] + compensate_dist)
+    mask4 = gt > (disjoint_depth_range[1] + compensate_dist * scaling_factor)
 
     filtered_disp0 = est[mask0]
     filtered_depth0 = gt[mask0]
@@ -705,12 +706,15 @@ def plot_linear(
     )
     residual2 = pred2 - filtered_depth2
 
-    filtered_disp3 = est[mask3]
-    filtered_depth3 = gt[mask3]
-    error3 = error[mask3]
-    pred_3_disp = linear_model2.predict(filtered_disp3.reshape(-1, 1))
-    pred3 = focal * baseline / pred_3_disp
-    residual3 = pred3 - filtered_depth3
+    plot_fig_3 = False
+    if np.sum(mask3) > 0:
+        plot_fig_3 = True
+        filtered_disp3 = est[mask3]
+        filtered_depth3 = gt[mask3]
+        error3 = error[mask3]
+        pred_3_disp = linear_model2.predict(filtered_disp3.reshape(-1, 1))
+        pred3 = focal * baseline / pred_3_disp
+        residual3 = pred3 - filtered_depth3
 
     plot_fig_4 = False
     if np.sum(mask4) > 0:
@@ -762,20 +766,28 @@ def plot_linear(
         filtered_depth2, error2, color="black", alpha=0.5, label="Actual Residuals"
     )
 
-    ax1.scatter(
-        filtered_depth3,
-        residual3,
-        color="red",
-        alpha=0.5,
-        label="Linear Model 2 Residuals",
-    )
-    ax1.scatter(
-        filtered_depth3, error3, color="black", alpha=0.5, label="Actual Residuals"
-    )
+    if plot_fig_3:
+        ax1.scatter(
+            filtered_depth3,
+            residual3,
+            color="red",
+            alpha=0.5,
+            label="Linear Model 2 Residuals",
+        )
+        ax1.scatter(
+            filtered_depth3, error3, color="black", alpha=0.5, label="Actual Residuals"
+        )
+        ax1.hlines(
+            0,
+            xmin=0,
+            xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+            colors="red",
+            linestyles="dashed",
+        )
     ax1.hlines(
         0,
         xmin=0,
-        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+        xmax=np.max(filtered_depth2),
         colors="red",
         linestyles="dashed",
     )
@@ -785,7 +797,7 @@ def plot_linear(
     ax1.legend()
     if save_path is not None:
         plt.savefig(residual_path)
-    plt.show()
+    # plt.show()
 
     # Error rate plot
     fig2, ax2 = plt.subplots(figsize=(10, 6))
@@ -831,20 +843,60 @@ def plot_linear(
         alpha=0.5,
         label="Actual Error Rate",
     )
-    ax2.scatter(
-        filtered_depth3,
-        residual3 / filtered_depth3 * 100,
-        color="gray",
-        alpha=0.5,
-        label="Linear Model 2 Error Rate",
-    )
-    ax2.scatter(
-        filtered_depth3,
-        error3 / filtered_depth3 * 100,
-        color="black",
-        alpha=0.5,
-        label="Actual Error Rate",
-    )
+    if plot_fig_3:
+        ax2.scatter(
+            filtered_depth3,
+            residual3 / filtered_depth3 * 100,
+            color="gray",
+            alpha=0.5,
+            label="Linear Model 2 Error Rate",
+        )
+        ax2.scatter(
+            filtered_depth3,
+            error3 / filtered_depth3 * 100,
+            color="black",
+            alpha=0.5,
+            label="Actual Error Rate",
+        )
+        ax2.hlines(
+            0,
+            xmin=0,
+            xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+            colors="red",
+            linestyles="dashed",
+        )
+        ax2.hlines(
+            2,
+            xmin=0,
+            xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+            colors="pink",
+            linestyles="dashed",
+            label="2(%) error Line",
+        )
+        ax2.hlines(
+            -2,
+            xmin=0,
+            xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+            colors="pink",
+            linestyles="dashed",
+            label="2(%) error Line",
+        )
+        ax2.hlines(
+            4,
+            xmin=0,
+            xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+            colors="cyan",
+            linestyles="dashed",
+            label="4(%) error Line",
+        )
+        ax2.hlines(
+            -4,
+            xmin=0,
+            xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+            colors="cyan",
+            linestyles="dashed",
+            label="4(%) error Line",
+        )
     if plot_fig_4:
         ax2.scatter(
             filtered_depth4,
@@ -863,14 +915,14 @@ def plot_linear(
     ax2.hlines(
         0,
         xmin=0,
-        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+        xmax=np.max(filtered_depth2),
         colors="red",
         linestyles="dashed",
     )
     ax2.hlines(
         2,
         xmin=0,
-        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+        xmax=np.max(filtered_depth2),
         colors="pink",
         linestyles="dashed",
         label="2(%) error Line",
@@ -878,7 +930,7 @@ def plot_linear(
     ax2.hlines(
         -2,
         xmin=0,
-        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+        xmax=np.max(filtered_depth2),
         colors="pink",
         linestyles="dashed",
         label="2(%) error Line",
@@ -886,7 +938,7 @@ def plot_linear(
     ax2.hlines(
         4,
         xmin=0,
-        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+        xmax=np.max(filtered_depth2),
         colors="cyan",
         linestyles="dashed",
         label="4(%) error Line",
@@ -894,7 +946,7 @@ def plot_linear(
     ax2.hlines(
         -4,
         xmin=0,
-        xmax=np.max(filtered_depth4) if plot_fig_4 else np.max(filtered_depth3),
+        xmax=np.max(filtered_depth2),
         colors="cyan",
         linestyles="dashed",
         label="4(%) error Line",
@@ -905,7 +957,7 @@ def plot_linear(
     ax2.legend(fontsize=5)
     if save_path is not None:
         plt.savefig(error_rate_path)
-    plt.show()
+    # plt.show()
 
     # Depth comparison plot
     fig3, ax3 = plt.subplots(figsize=(10, 6))
@@ -933,13 +985,14 @@ def plot_linear(
         marker="x",
         color="green",
     )
-    ax3.plot(
-        filtered_depth3,
-        pred3,
-        label=f"Linear Model ({disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist})",
-        marker="x",
-        color="cyan",
-    )
+    if plot_fig_3:
+        ax3.plot(
+            filtered_depth3,
+            pred3,
+            label=f"Linear Model ({disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist})",
+            marker="x",
+            color="cyan",
+        )
     if plot_fig_4:
         ax3.plot(
             gt[mask4],
@@ -955,7 +1008,7 @@ def plot_linear(
     ax3.legend()
     if save_path is not None:
         plt.savefig(comp_path)
-    plt.show()
+    # plt.show()
 
 
 def plot_prediction_curve(
@@ -973,4 +1026,4 @@ def plot_prediction_curve(
     plt.legend()
     if save_path is not None:
         plt.savefig(save_path)
-    plt.show()
+    # plt.show()

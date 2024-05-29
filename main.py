@@ -3,9 +3,11 @@ from KBD.apis import (
     apply_transformation_linear_parallel,
     generate_parameters,
     generate_parameters_kernel,
+    generate_parameters_trf,
+    apply_transformation_parallel,
 )
 from KBD.plotters import plot_prediction_curve
-from KBD.helpers import parallel_copy
+from KBD.helpers import parallel_copy, sampling_strategy_criterion
 from KBD.utils import generate_linear_KBD_data, generate_global_KBD_data
 from KBD.constants import (
     CAMERA_TYPE,
@@ -17,21 +19,50 @@ import os
 
 if __name__ == "__main__":
     cwd = os.getcwd()
-    rootdir = f"{cwd}/data/{CAMERA_TYPE}/image_data"
-    copydir = f"{cwd}/data/{CAMERA_TYPE}/image_data_transformed_linear"
-    table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-17.xlsx"
-    params_save_path = f"{cwd}/data/{CAMERA_TYPE}"
-    l2_regularization_param = (0.01,)
-    disjoint_depth_range = [1000, 2900]
-    pseudo_range = (100, 5000)
+    # rootdir = f"{cwd}/data/{CAMERA_TYPE}/image_data"
+    # copydir = f"{cwd}/data/{CAMERA_TYPE}/image_data_transformed_trf"
+    # table_path = f"{cwd}/data/{CAMERA_TYPE}/depthquality-2024-05-22.xlsx"
+    # params_save_path = f"{cwd}/data/{CAMERA_TYPE}"
+    # l2_regularization_param = (0.01,)
+    # disjoint_depth_range = [1000, 2900]
+    # pseudo_range = (100, 5000)
     compensate_dist = 200
+    scaling_factor = 10
 
-    # k, delta, b, focal, baseline = generate_parameters(
-    #     path=rootdir,
-    #     tabel_path=table_path,
-    #     save_path=params_save_path,
-    #     use_l2=False,
-    # )
+    camera_types = [
+        "N09ASH24DH0054",
+        "N09ASH24DH0055",
+        "N09ASH24DH0056",
+        "N09ASH24DH0058",
+    ]
+    table_names = [
+        "depthquality-2024-05-22.xlsx",
+        "depthquality-2024-05-22_55.xlsx",
+        "depthquality-2024-05-22_56.xlsx",
+        "depthquality-2024-05-22.xlsx",
+    ]
+    disjoint_depth_ranges = [[600, 2999], [1008, 2908], [600, 3000], [600, 2999]]
+    for type, table_name, range in zip(
+        camera_types, table_names, disjoint_depth_ranges
+    ):
+        print(f"processing {type} now with {table_name} ...")
+        if type != "N09ASH24DH0055":
+            continue
+        root_dir = f"{cwd}/data/{type}/image_data"
+        copy_dir = f"{cwd}/data/{type}/image_data_transformed_linear"
+        save_dir = f"{cwd}/data/{type}"
+        tablepath = f"{cwd}/data/{type}/{table_name}"
+        # sampling_strategy_criterion(root_dir, tablepath, tablepath.replace("depthquality","sampling-criterion"))
+        matrix, focal, baseline = generate_parameters_linear(
+            path=root_dir,
+            tabel_path=tablepath,
+            save_path=save_dir,
+            disjoint_depth_range=range,
+            compensate_dist=compensate_dist,
+            scaling_factor=scaling_factor,
+        )
+        parallel_copy(root_dir, copy_dir)
+        apply_transformation_linear_parallel(copy_dir, matrix, focal, baseline, range, compensate_dist, scaling_factor)
     # methods = ["gaussian", "polynomial", "laplacian"]
     # for method in methods:
     #     ret = generate_parameters_adv(
@@ -70,8 +101,7 @@ if __name__ == "__main__":
 
     # copy_all_subfolders(rootdir, copydir)
     # parallel_copy(rootdir, copydir)
-
-    # # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
+    # apply_transformation_parallel(copydir, k, delta, b, focal, baseline)
     # apply_transformation_linear_parallel(
     #     copydir, params_matrix, focal, baseline, disjoint_depth_range
     # )

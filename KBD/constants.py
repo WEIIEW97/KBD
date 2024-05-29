@@ -1,6 +1,6 @@
 # constants
 SUBFIX = "DEPTH/raw"
-CAMERA_TYPE = "N09ASH24DH0047"
+CAMERA_TYPE = "N09ASH24DH0057"
 BASEDIR = f"data/{CAMERA_TYPE}/image_data"
 H = 480
 W = 640
@@ -12,6 +12,8 @@ ANCHOR_POINT = [H//2, W//2]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
+MEDIAN_DIST_NAME = "median_depth_50x50_anchor"
+MEDIAN_DISP_NAME = "median_disp_50x50_anchor"
 GT_DIST_NAME = "actual_depth"
 GT_ERROR_NAME = "absolute_error"
 FOCAL_NAME = "focal"
@@ -30,4 +32,12 @@ MAPPED_PAIR_DICT = {
     "相机焦距": "focal",
     "相机基线": "baseline",
     "绝对误差/mm": "absolute_error",
+}
+
+MAPPED_PAIR_DICT_DEBUG = {
+    "距离(mm)": "actual_depth",
+    "相机焦距": "focal",
+    "相机基线": "baseline",
+    "绝对误差/mm": "absolute_error",
+    "fit plane dist/mm": "fit_plane"
 }

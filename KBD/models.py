@@ -141,7 +141,13 @@ def model_kbd_further_optimized(
 
 
 def model_kbd_joint_linear(
-    actual_depth, disp, focal, baseline, disjoint_depth_range, compensate_dist=200
+    actual_depth,
+    disp,
+    focal,
+    baseline,
+    disjoint_depth_range,
+    compensate_dist=200,
+    scaling_factor=10,
 ):
     """
     Fit the KBD model to the data where actual_depth >= 500.
@@ -187,7 +193,7 @@ def model_kbd_joint_linear(
     smooth_dist = compensate_dist
 
     pre_depth_joint = KBD_pred_depth_min - smooth_dist
-    after_depth_joint = KBD_pred_depth_max + smooth_dist
+    after_depth_joint = KBD_pred_depth_max + smooth_dist * scaling_factor
 
     pre_disp_joint = FB / pre_depth_joint
     after_disp_joint = FB / after_depth_joint
@@ -600,16 +606,17 @@ class TrustRegionReflectiveOptimizer:
             / self.gt[self.gt < self.restriction_loc]
         )
         return np.concatenate(
-            (residuals, self.local_restriction_weights * np.maximum(0, local_restric))
+            (
+                residuals,
+                self.local_restriction_weights * np.maximum(0, local_restric - 0.02),
+            )
         )
 
     def optimize(self, initial_params, bounds):
         result = least_squares(self.loss, initial_params, bounds=bounds)
         return result
 
-    def run(
-        self, initial_params=[1.0, 0, 0], bounds=([0, -100, -1000], [2000, 100, 1000])
-    ):
+    def run(self, initial_params=[1.0, 0, 0], bounds=([0, -10, -100], [2, 10, 100])):
         result = self.optimize(initial_params, bounds)
         print("Optimization Result:", result)
 

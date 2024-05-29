@@ -21,6 +21,7 @@ from .models import (
     model_kbd_v3,
     model_kbd_v4,
     model_kbd_bayes,
+    TrustRegionReflectiveOptimizer,
 )
 from .constants import (
     UINT16_MIN,
@@ -63,9 +64,9 @@ def generate_parameters(
     df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
     focal, baseline = map_table(df, mean_dists)
 
-    actual_depth = df[GT_DIST_NAME]
-    avg_50x50_anchor_disp = df[AVG_DISP_NAME]
-    error = df[GT_ERROR_NAME]
+    actual_depth = df[GT_DIST_NAME].values
+    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+    error = df[GT_ERROR_NAME].values
 
     if not use_l2:
         res = model_kbd(actual_depth, avg_50x50_anchor_disp, focal, baseline)
@@ -94,6 +95,56 @@ def generate_parameters(
     k_ = float(np.float64(res.x[0]))
     delta_ = float(np.float64(res.x[1]))
     b_ = float(np.float64(res.x[2]))
+    params_dict = {
+        "k": k_,
+        "delta": delta_,
+        "b": b_,
+    }
+    print(params_dict)
+
+    with open(param_path, "w") as f:
+        yaml.dump(params_dict, f, default_flow_style=False)
+    print("Generating done...")
+
+    pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
+    residual = pred - actual_depth
+    plot_residuals(residual, error, actual_depth, residual_path)
+    plot_error_rate(residual, error, actual_depth, error_rate_path)
+    plot_comparison(
+        actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+    )
+
+    return k_, delta_, b_, focal, baseline
+
+
+def generate_parameters_trf(
+    path: str,
+    tabel_path: str,
+    save_path: str,
+):
+    all_distances = retrive_folder_names(path)
+    mean_dists = calculate_mean_value(path, all_distances)
+    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
+    focal, baseline = map_table(df, mean_dists)
+
+    actual_depth = df[GT_DIST_NAME].values
+    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+    error = df[GT_ERROR_NAME].values
+
+    trf = TrustRegionReflectiveOptimizer(
+        actual_depth, avg_50x50_anchor_disp, focal, baseline
+    )
+    k_, delta_, b_, residuals_ = trf.run()
+
+    common_prefix = "TRF_"
+    param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
+    comp_path = os.path.join(save_path, common_prefix + OUT_FIG_COMP_FILE_NAME)
+    residual_path = os.path.join(save_path, common_prefix + OUT_FIG_RESIDUAL_FILE_NAME)
+    error_rate_path = os.path.join(
+        save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
+    )
+
+    # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
     params_dict = {
         "k": k_,
         "delta": delta_,
@@ -178,7 +229,7 @@ def generate_parameters_adv(path: str, tabel_path: str, save_path: str, method="
         )
     )
 
-    print(f"error in <1000 is {error}")
+    print(f"error in <1000 is {error_less_than_1000_bayes}")
 
     return k_, delta_, b_, focal, baseline
 
@@ -399,6 +450,8 @@ def generate_parameters_linear(
     tabel_path: str,
     save_path: str,
     disjoint_depth_range: tuple,
+    compensate_dist: float = 200,
+    scaling_factor: float = 10,
 ):
     all_distances = retrive_folder_names(path)
     mean_dists = calculate_mean_value(path, all_distances)
@@ -410,7 +463,13 @@ def generate_parameters_linear(
     error = df[GT_ERROR_NAME].values
 
     linear_model1, res, linear_model2 = model_kbd_joint_linear(
-        actual_depth, avg_50x50_anchor_disp, focal, baseline, disjoint_depth_range
+        actual_depth,
+        avg_50x50_anchor_disp,
+        focal,
+        baseline,
+        disjoint_depth_range,
+        compensate_dist=compensate_dist,
+        scaling_factor=scaling_factor,
     )
 
     param_path = os.path.join(save_path, LINEAR_OUT_PARAMS_FILE_NAME)
@@ -433,7 +492,7 @@ def generate_parameters_linear(
     params_dict = OrderedDict(
         [
             (
-                f"{0}-{disjoint_depth_range[0]-200}",
+                f"{0}-{disjoint_depth_range[0]-compensate_dist}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -444,7 +503,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[0]-200}-{disjoint_depth_range[0]}",
+                f"{disjoint_depth_range[0]-compensate_dist}-{disjoint_depth_range[0]}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -466,7 +525,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[1]}-{disjoint_depth_range[1]+200}",
+                f"{disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist*scaling_factor}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -477,7 +536,7 @@ def generate_parameters_linear(
                 ),
             ),
             (
-                f"{disjoint_depth_range[1]+200}-{np.inf}",
+                f"{disjoint_depth_range[1]+compensate_dist*scaling_factor}-{np.inf}",
                 OrderedDict(
                     [
                         ("k", 1),
@@ -504,6 +563,8 @@ def generate_parameters_linear(
         baseline,
         (linear_model1, res, linear_model2),
         disjoint_depth_range,
+        compensate_dist=compensate_dist,
+        scaling_factor=scaling_factor,
         save_path=save_path,
     )
 
@@ -527,6 +588,8 @@ def apply_transformation_linear(
     focal: float,
     baseline: float,
     disjoint_depth_range: tuple,
+    compensate_dist: float,
+    scaling_factor: float,
 ) -> None:
     folders = retrive_folder_names(path)
 
@@ -536,7 +599,15 @@ def apply_transformation_linear(
             full_path = os.path.join(path, folder, SUBFIX, p)
             raw = load_raw(full_path, H, W)
             depth = modify_linear(
-                raw, H, W, focal, baseline, params_matrix, disjoint_depth_range
+                raw,
+                H,
+                W,
+                focal,
+                baseline,
+                params_matrix,
+                disjoint_depth_range,
+                compensate_dist,
+                scaling_factor,
             )
             # make sure raw value is within range(0, 65535)
             depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
@@ -556,10 +627,19 @@ def transformer_linear_impl(
     params_matrix,
     disjoint_depth_range,
     compensate_dist,
+    scaling_factor,
 ):
     raw = load_raw(full_path, H, W)
     depth = modify_linear(
-        raw, H, W, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist
+        raw,
+        H,
+        W,
+        focal,
+        baseline,
+        params_matrix,
+        disjoint_depth_range,
+        compensate_dist,
+        scaling_factor,
     )
     depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
     depth = depth.astype(np.uint16)
@@ -574,6 +654,7 @@ def apply_transformation_linear_parallel(
     baseline: float,
     disjoint_depth_range: tuple | list,
     compensate_dist: float,
+    scaling_factor: float,
     max_workers: int = 8,
 ) -> None:
     folders = retrive_folder_names(path)
@@ -595,6 +676,7 @@ def apply_transformation_linear_parallel(
                         params_matrix,
                         disjoint_depth_range,
                         compensate_dist,
+                        scaling_factor,
                     )
                 )
 

@@ -6,3 +6,7 @@ tests/
 **/__pycache__
 
 *.ipynb
+
+build/
+dist/
+

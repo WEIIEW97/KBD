@@ -1,6 +1,8 @@
 import numpy as np
 from numba import jit
 
+from .constants import EPSILON
+
 
 @jit(nopython=True)
 def modify(
@@ -52,6 +54,7 @@ def modify_linear(
     param_matrix: np.ndarray,
     disjoint_depth_range: tuple | list,
     compensate_dist: float,
+    scaling_factor: float,
 ) -> np.ndarray:
     fb = focal * baseline
     out = np.zeros_like(m)
@@ -59,7 +62,9 @@ def modify_linear(
     for i in range(h):
         for j in range(w):
             depth = m[i, j]
-            if depth < disjoint_depth_range[0]-compensate_dist:
+            if depth >= 0 and depth < 0 + EPSILON:
+                continue
+            elif depth < disjoint_depth_range[0] - compensate_dist:
                 out[i, j] = depth
             elif depth < disjoint_depth_range[0]:
                 disp0 = fb / depth
@@ -70,7 +75,7 @@ def modify_linear(
                 disp0 = fb / depth
                 k_, delta_, b_ = param_matrix[2, :3]
                 out[i, j] = k_ * fb / (disp0 + delta_) + b_
-            elif depth < disjoint_depth_range[1]+compensate_dist:
+            elif depth < disjoint_depth_range[1] + compensate_dist * scaling_factor:
                 disp0 = fb / depth
                 alpha_, beta_ = param_matrix[3, 3:5]
                 disp1 = alpha_ * disp0 + beta_
