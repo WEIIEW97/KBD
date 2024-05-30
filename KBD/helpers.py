@@ -125,6 +125,37 @@ def calculate_mean_value(rootpath: str, folders: list[str], is_median:bool=False
     return dist_dict
 
 
+def sampling_strategy(
+    rootpath: str, folders: list[str], method="mean"
+) -> dict[str, float]:
+    assert method in ("mean", "median")
+    dist_dict = {}
+    for folder in folders:
+        distance = folder.split("_")[0]
+        rawpath = os.path.join(rootpath, folder, SUBFIX)
+        paths = [
+            f for f in os.listdir(rawpath) if os.path.isfile(os.path.join(rawpath, f))
+        ]
+        mean_dist_holder = []
+        for path in paths:
+            path = os.path.join(rawpath, path)
+            raw = load_raw(path, H, W)
+            valid_raw = raw[
+                ANCHOR_POINT[0] - 25 : ANCHOR_POINT[0] + 25,
+                ANCHOR_POINT[1] - 25 : ANCHOR_POINT[1] + 25,
+            ]
+            if method == "mean":
+                mu = np.mean(valid_raw)
+            elif method == "median":
+                mu = np.median(valid_raw)
+            else:
+                mu = 0
+            mean_dist_holder.append(mu)
+        final_mu = np.mean(mean_dist_holder)
+        dist_dict[distance] = final_mu
+    return dist_dict
+
+
 def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
     df[AVG_DIST_NAME] = df[GT_DIST_NAME].astype(str).map(dist_dict)
     focal = df[FOCAL_NAME].iloc[0]  # assume focal value is the same

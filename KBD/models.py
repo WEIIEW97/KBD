@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
-from scipy.optimize import differential_evolution, least_squares
+from scipy.optimize import differential_evolution
 from bayes_opt import BayesianOptimization
 
 from .constants import EPSILON
@@ -12,6 +12,9 @@ def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
     model = LinearRegression()
     model.fit(x.reshape(-1, 1), y)
     return model
+
+def model(disp, focal, baseline, k, delta, b):
+    return k * (focal * baseline) / (disp + delta) + b
 
 
 def model_kb(x, x_hat):

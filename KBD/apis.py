@@ -64,7 +64,7 @@ def generate_parameters(
     df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
     focal, baseline = map_table(df, mean_dists)
 
-    actual_depth = df[GT_DIST_NAME].values
+    actual_depth = df[GT_DIST_NAME].values  # make sure is np.ndarray
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
     error = df[GT_ERROR_NAME].values
 
