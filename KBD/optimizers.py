@@ -18,6 +18,9 @@ class NelderMeadOptimizer:
         local_restriction_weights=1000,
         restriction_loc=1000,
         target_rate=0.02,
+        apply_weights=False,
+        apply_l2=False,
+        reg_lambda=0.001,
     ):
         self.gt = gt
         self.est = est
@@ -26,24 +29,38 @@ class NelderMeadOptimizer:
         self.local_restriction_weights = local_restriction_weights
         self.restriction_loc = restriction_loc
         self.target_rate = target_rate
+        self.reg_lambda = reg_lambda
 
         self.initial_params = [1.0, 0, 0]
         self.bounds = ([0, -10, -100], [10, 10, 100])
+
+        self.apply_weights = apply_weights
+        self.apply_l2 = apply_l2
 
     def loss(self, params):
         k, delta, b = params
         pred = model(self.est, self.focal, self.baseline, k, delta, b)
         residuals = pred - self.gt
         mse = np.mean(residuals**2)
-        local_restric = np.abs(
-            (
-                pred[self.gt < self.restriction_loc]
-                - self.gt[self.gt < self.restriction_loc]
+        if self.apply_weights:
+            local_restric = np.abs(
+                (
+                    pred[self.gt < self.restriction_loc]
+                    - self.gt[self.gt < self.restriction_loc]
+                )
+                / self.gt[self.gt < self.restriction_loc]
             )
-            / self.gt[self.gt < self.restriction_loc]
-        )
-        return mse + self.local_restriction_weights * max(
-            0, local_restric - self.target_rate
+        else:
+            local_restric = 0
+
+        if self.apply_l2:
+            l2_reg = self.reg_lambda * np.sum(np.square(params))
+        else:
+            l2_reg = 0
+        return (
+            mse
+            + self.local_restriction_weights * max(0, local_restric - self.target_rate)
+            + l2_reg
         )
 
     def optimize(self, initial_params, bounds):
@@ -63,23 +80,128 @@ class NelderMeadOptimizer:
             pred = model(self.est, self.focal, self.baseline, k, delta, b)
 
             mse = np.mean((pred - self.gt) ** 2)
-            local_restric = np.mean(
-                np.abs(
-                    (
-                        pred[self.gt < self.restriction_loc]
-                        - self.gt[self.gt < self.restriction_loc]
+            if self.apply_weights:
+                local_restric = np.mean(
+                    np.abs(
+                        (
+                            pred[self.gt < self.restriction_loc]
+                            - self.gt[self.gt < self.restriction_loc]
+                        )
+                        / self.gt[self.gt < self.restriction_loc]
                     )
-                    / self.gt[self.gt < self.restriction_loc]
                 )
-            )
 
             print("MSE:", mse)
-            print(f"Error less than {self.restriction_loc}:", local_restric)
+            if self.apply_weights:
+                print(f"Error less than {self.restriction_loc}:", local_restric)
             print("Optimized Parameters:", optimized_params)
 
             return k, delta, b
         else:
             print("Optimization failed.")
+
+
+class JointLinearSmoothingOptimizer:
+    def __init__(
+        self,
+        gt,
+        est,
+        focal,
+        baseline,
+        disjoint_depth_range,
+        compensate_dist=200,
+        scaling_factor=10,
+        local_restriction_weights=1000,
+        restriction_loc=1000,
+        target_rate=0.02,
+        apply_weights=False,
+        apply_l2=False,
+        reg_lambda=0.001,
+    ):
+        self.gt = gt
+        self.est = est
+        self.focal = focal
+        self.baseline = baseline
+        self.local_restriction_weights = local_restriction_weights
+        self.restriction_loc = restriction_loc
+        self.target_rate = target_rate
+        self.disjoint_depth_range = disjoint_depth_range
+        self.compensate_dist = compensate_dist
+        self.scaling_factor = scaling_factor
+        self.apply_weights = apply_weights
+        self.apply_l2 = apply_l2
+        self.reg_lambda = reg_lambda
+
+        self.initial_params = [1.0, 0, 0]
+        self.bounds = ([0, -10, -100], [10, 10, 100])
+
+    def segment(self):
+        # find the range to calculate KBD params within
+        mask = np.where(
+            self.gt
+            >= self.disjoint_depth_range[0] & self.gt
+            <= self.disjoint_depth_range[1]
+        )
+        self.kbd_x = self.est[mask]
+        self.kbd_y = self.gt[mask]
+
+        kbd_base_optimizer = NelderMeadOptimizer(
+            self.kbd_y,
+            self.kbd_x,
+            self.focal,
+            self.baseline,
+            self.local_restriction_weights,
+            self.restriction_loc,
+            self.target_rate,
+            self.apply_weights,
+            self.apply_l2,
+            self.reg_lambda,
+        )
+
+        kbd_result = kbd_base_optimizer.run()
+        return kbd_result
+
+    def run(self):
+        kbd_result = self.segment()
+
+        if kbd_result is not None:
+            k_, delta_, b_ = kbd_result.x
+            fb_ = self.focal * self.baseline
+            x_min = np.min(self.kbd_x)
+            x_max = np.max(self.kbd_x)
+
+            y_hat_max = k_ * fb_ / (x_min + delta_) + b_
+            y_hat_min = k_ * fb_ / (x_max + delta_) + b_
+
+            x_hat_min = fb_ / y_hat_max
+            x_hat_max = fb_ / y_hat_min
+
+            print(
+                f"KBD model prediction on {x_max} is {y_hat_min}, where GT detph is {fb_ / x_max} and prediction disp is {x_hat_max}"
+            )
+            print(
+                f"KBD model prediction on {x_min} is {y_hat_max}, where GT detph is {fb_ / x_min} and prediction disp is {x_hat_min}"
+            )
+
+            pre_y = y_hat_min - self.compensate_dist
+            after_y = y_hat_max + self.compensate_dist * self.scaling_factor
+
+            pre_x = fb_ / pre_y
+            after_x = fb_ / after_y
+
+            lm1 = LinearRegression()
+            x1 = np.array([pre_x, x_max])
+            y1 = np.array([pre_x, x_hat_max])
+            lm1.fit(x1.reshape(-1, 1), y1)
+
+            lm2 = LinearRegression()
+            x2 = np.array([x_min, after_x])
+            y2 = np.array([x_hat_min, after_x])
+            lm2.fit(x2.reshape(-1, 1), y2)
+
+            return lm1, kbd_result, lm2
+
+        return
 
 
 class TrustRegionReflectiveOptimizer:

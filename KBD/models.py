@@ -13,6 +13,7 @@ def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
     model.fit(x.reshape(-1, 1), y)
     return model
 
+
 def model(disp, focal, baseline, k, delta, b):
     return k * (focal * baseline) / (disp + delta) + b
 
@@ -574,7 +575,3 @@ def model_kbd_bayes(
         print("Optimizer max does not contain 'params' key.")
 
     return result
-
-
-def model(disp, focal, baseline, k, delta, b):
-    return k * (focal * baseline) / (disp + delta) + b
