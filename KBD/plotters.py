@@ -699,7 +699,7 @@ def plot_linear(
     error2 = error[mask2]
 
     # Get optimized parameters
-    optimized_params = optimization_result.x
+    optimized_params = optimization_result
     pred2 = (
         optimized_params[0] * focal * baseline / (filtered_disp2 + optimized_params[1])
         + optimized_params[2]

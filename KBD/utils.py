@@ -1,9 +1,18 @@
 import numpy as np
 import pandas as pd
+import json
+import yaml
 from sklearn.preprocessing import MinMaxScaler
 from collections import OrderedDict
 
 from .models import global_KBD_func, linear_KBD_piecewise_func
+
+
+def ordered_dict_representer(dumper, data):
+    return dumper.represent_dict(data.items())
+
+
+yaml.add_representer(OrderedDict, ordered_dict_representer)
 
 
 def read_excel(path: str) -> pd.DataFrame:
@@ -47,6 +56,22 @@ def get_linear_model_params(linear_model):
         ]
     )
     return params
+
+
+def json_dumper(data, savepath):
+    with open(savepath, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def json_reader(path):
+    with open(path, "r") as f:
+        data = json.load(f)
+    return data
+
+
+def yaml_dumper(data, savepath):
+    with open(savepath, "w") as f:
+        yaml.dump(data, f, default_flow_style=None, sort_keys=False)
 
 
 def generate_linear_KBD_data(

@@ -15,7 +15,7 @@ def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
 
 
 def model(disp, focal, baseline, k, delta, b):
-    return k * (focal * baseline) / (disp + delta) + b
+    return k * focal * baseline / (disp + delta) + b
 
 
 def model_kb(x, x_hat):
@@ -59,23 +59,7 @@ def model_kbd(
     def cost_func(params, disp_norm, baseline, focal, actual_depth):
         predictions = mfunc(params, disp_norm, baseline, focal)
         mse = np.mean((actual_depth - predictions) ** 2)
-        error_less_than_1000 = np.mean(
-            np.abs(
-                (predictions[actual_depth < 1000] - actual_depth[actual_depth < 1000])
-                / actual_depth[actual_depth < 1000]
-            )
-        )
-        error_greater_than_1500 = np.mean(
-            np.abs(
-                (predictions[actual_depth >= 1500] - actual_depth[actual_depth >= 1500])
-                / actual_depth[actual_depth >= 1500]
-            )
-        )
-        return (
-            mse
-            + 500 * max(0, error_less_than_1000 - 0.015)
-            + 500 * max(0, error_greater_than_1500 - 0.035)
-        )
+        return mse
 
     # Initial guess for the parameters and bounds
     initial_params = [1.0, 0.01, 10]  # Starting values for k, delta, b

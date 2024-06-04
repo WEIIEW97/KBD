@@ -10,3 +10,5 @@ tests/
 build/
 dist/
 
+.vscode
+.cache

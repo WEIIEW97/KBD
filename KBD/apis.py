@@ -1,27 +1,20 @@
 import numpy as np
 import os
-import yaml
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import OrderedDict
 from sklearn.linear_model import LinearRegression
 
 from .helpers import (
-    retrive_folder_names,
-    calculate_mean_value,
-    map_table,
+    preprocessing,
     retrive_file_names,
+    retrive_folder_names,
 )
-from .utils import read_table, load_raw, depth2disp, get_linear_model_params
+from .utils import load_raw, depth2disp, get_linear_model_params, json_dumper
 from .models import (
-    model_kbd,
-    model_kbd_further_optimized,
-    model_kbd_joint_linear,
     model_kernel_fit,
     model_kbd_v3,
-    model_kbd_v4,
     model_kbd_bayes,
-    TrustRegionReflectiveOptimizer,
 )
 from .constants import (
     UINT16_MIN,
@@ -30,7 +23,6 @@ from .constants import (
     W,
     SUBFIX,
     EPSILON,
-    MAPPED_PAIR_DICT,
     GT_DIST_NAME,
     AVG_DISP_NAME,
     GT_ERROR_NAME,
@@ -40,40 +32,39 @@ from .constants import (
     OUT_FIG_ERROR_RATE_FILE_NAME,
     LINEAR_OUT_PARAMS_FILE_NAME,
 )
-from .core import modify, modify_linear
+from .core import modify, modify_linear, modify_linear_vectorize
 from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear
 from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
-
-
-def ordered_dict_representer(dumper, data):
-    return dumper.represent_dict(data.items())
-
-
-yaml.add_representer(OrderedDict, ordered_dict_representer)
+from .optimizers import (
+    TrustRegionReflectiveOptimizer,
+    JointLinearSmoothingOptimizer,
+    NelderMeadOptimizer,
+)
 
 
 def generate_parameters(
     path: str,
-    tabel_path: str,
+    table_path: str,
     save_path: str,
     use_l2: bool = False,
     reg_lambda: float = 0.01,
 ):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
-    focal, baseline = map_table(df, mean_dists)
+    df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
     actual_depth = df[GT_DIST_NAME].values  # make sure is np.ndarray
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
     error = df[GT_ERROR_NAME].values
 
-    if not use_l2:
-        res = model_kbd(actual_depth, avg_50x50_anchor_disp, focal, baseline)
-    else:
-        res = model_kbd_further_optimized(
-            actual_depth, avg_50x50_anchor_disp, focal, baseline, reg_lambda=reg_lambda
-        )
+    nelder = NelderMeadOptimizer(
+        actual_depth,
+        avg_50x50_anchor_disp,
+        focal,
+        baseline,
+        apply_l2=use_l2,
+        reg_lambda=reg_lambda,
+    )
+
+    res = nelder.run()
 
     param_path = os.path.join(save_path, OUT_PARAMS_FILE_NAME)
     comp_path = os.path.join(save_path, OUT_FIG_COMP_FILE_NAME)
@@ -91,10 +82,9 @@ def generate_parameters(
             save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
         )
 
-    # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
-    k_ = float(np.float64(res.x[0]))
-    delta_ = float(np.float64(res.x[1]))
-    b_ = float(np.float64(res.x[2]))
+    k_ = float(np.float64(res[0]))
+    delta_ = float(np.float64(res[1]))
+    b_ = float(np.float64(res[2]))
     params_dict = {
         "k": k_,
         "delta": delta_,
@@ -102,8 +92,7 @@ def generate_parameters(
     }
     print(params_dict)
 
-    with open(param_path, "w") as f:
-        yaml.dump(params_dict, f, default_flow_style=False)
+    json_dumper(params_dict, param_path)
     print("Generating done...")
 
     pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
@@ -119,13 +108,10 @@ def generate_parameters(
 
 def generate_parameters_trf(
     path: str,
-    tabel_path: str,
+    table_path: str,
     save_path: str,
 ):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
-    focal, baseline = map_table(df, mean_dists)
+    df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
@@ -152,8 +138,7 @@ def generate_parameters_trf(
     }
     print(params_dict)
 
-    with open(param_path, "w") as f:
-        yaml.dump(params_dict, f, default_flow_style=False)
+    json_dumper(params_dict, param_path)
     print("Generating done...")
 
     pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
@@ -167,11 +152,8 @@ def generate_parameters_trf(
     return k_, delta_, b_, focal, baseline
 
 
-def generate_parameters_adv(path: str, tabel_path: str, save_path: str, method="evo"):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
-    focal, baseline = map_table(df, mean_dists)
+def generate_parameters_adv(path: str, table_path: str, save_path: str, method="evo"):
+    df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
@@ -211,8 +193,7 @@ def generate_parameters_adv(path: str, tabel_path: str, save_path: str, method="
     }
     print(params_dict)
 
-    with open(param_path, "w") as f:
-        yaml.dump(params_dict, f, default_flow_style=False)
+    json_dumper(params_dict, param_path)
     print("Generating done...")
 
     pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
@@ -234,16 +215,148 @@ def generate_parameters_adv(path: str, tabel_path: str, save_path: str, method="
     return k_, delta_, b_, focal, baseline
 
 
+def generate_parameters_linear(
+    path: str,
+    table_path: str,
+    save_path: str,
+    disjoint_depth_range: tuple,
+    compensate_dist: float = 200,
+    scaling_factor: float = 10,
+):
+    df, focal, baseline = preprocessing(path=path, table_path=table_path)
+
+    actual_depth = df[GT_DIST_NAME].values
+    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+    error = df[GT_ERROR_NAME].values
+
+    jlm = JointLinearSmoothingOptimizer(
+        actual_depth,
+        avg_50x50_anchor_disp,
+        focal,
+        baseline,
+        disjoint_depth_range,
+        compensate_dist,
+        scaling_factor,
+    )
+
+    linear_model1, res, linear_model2 = jlm.run()
+
+    param_path = os.path.join(save_path, LINEAR_OUT_PARAMS_FILE_NAME)
+
+    k_ = float(np.float64(res[0]))
+    delta_ = float(np.float64(res[1]))
+    b_ = float(np.float64(res[2]))
+
+    linear_model1_params = get_linear_model_params(linear_model1)
+    linear_model2_params = get_linear_model_params(linear_model2)
+
+    ### do not support the shared pointer
+
+    def create_default_linear_model_params():
+        default_linear_model = LinearRegression()
+        default_linear_model.coef_ = np.array([1.0])
+        default_linear_model.intercept_ = np.array(0.0)
+        return get_linear_model_params(default_linear_model)
+
+    params_dict = OrderedDict(
+        [
+            (
+                f"{0}-{disjoint_depth_range[0]-compensate_dist}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", create_default_linear_model_params()),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[0]-compensate_dist}-{disjoint_depth_range[0]}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", linear_model1_params),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}",
+                OrderedDict(
+                    [
+                        ("k", k_),
+                        ("delta", delta_),
+                        ("b", b_),
+                        ("linear_model_params", create_default_linear_model_params()),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist*scaling_factor}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", linear_model2_params),
+                    ]
+                ),
+            ),
+            (
+                f"{disjoint_depth_range[1]+compensate_dist*scaling_factor}-{np.inf}",
+                OrderedDict(
+                    [
+                        ("k", 1),
+                        ("delta", 0),
+                        ("b", 0),
+                        ("linear_model_params", create_default_linear_model_params()),
+                    ]
+                ),
+            ),
+        ]
+    )
+
+    print(params_dict)
+
+    json_dumper(params_dict, param_path)
+    print("Generating done...")
+
+    plot_linear(
+        actual_depth,
+        avg_50x50_anchor_disp,
+        error,
+        focal,
+        baseline,
+        (linear_model1, res, linear_model2),
+        disjoint_depth_range,
+        compensate_dist=compensate_dist,
+        scaling_factor=scaling_factor,
+        save_path=save_path,
+    )
+
+    params_matrix = np.zeros((5, 5), dtype=np.float32)
+    params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
+    params_matrix[1, :] = np.array(
+        [1, 0, 0, linear_model1.coef_[0], linear_model1.intercept_]
+    )
+    params_matrix[2, :] = np.array([k_, delta_, b_, 1, 0])
+    params_matrix[3, :] = np.array(
+        [1, 0, 0, linear_model2.coef_[0], linear_model2.intercept_]
+    )
+    params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
+
+    return params_matrix, focal, baseline
+
+
 def generate_parameters_kernel(
     path: str,
-    tabel_path: str,
+    table_path: str,
     save_path: str,
     method="gaussian",
 ):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
-    focal, baseline = map_table(df, mean_dists)
+    df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
     actual_depth = df[GT_DIST_NAME]
     avg_50x50_anchor_disp = df[AVG_DISP_NAME]
@@ -274,8 +387,7 @@ def generate_parameters_kernel(
         }
         print(params_dict)
 
-        with open(param_path, "w") as f:
-            yaml.dump(params_dict, f, default_flow_style=False)
+        json_dumper(params_dict, param_path)
         print("Generating done...")
 
         pred = (
@@ -313,8 +425,7 @@ def generate_parameters_kernel(
         }
         print(params_dict)
 
-        with open(param_path, "w") as f:
-            yaml.dump(params_dict, f, default_flow_style=False)
+        json_dumper(params_dict, param_path)
         print("Generating done...")
 
         pred = (
@@ -349,8 +460,7 @@ def generate_parameters_kernel(
         }
         print(params_dict)
 
-        with open(param_path, "w") as f:
-            yaml.dump(params_dict, f, default_flow_style=False)
+        json_dumper(params_dict, param_path)
         print("Generating done...")
 
         pred = (
@@ -445,143 +555,6 @@ def apply_transformation_parallel(
     print("Transformation data done ...")
 
 
-def generate_parameters_linear(
-    path: str,
-    tabel_path: str,
-    save_path: str,
-    disjoint_depth_range: tuple,
-    compensate_dist: float = 200,
-    scaling_factor: float = 10,
-):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    df = read_table(tabel_path, pair_dict=MAPPED_PAIR_DICT)
-    focal, baseline = map_table(df, mean_dists)
-
-    actual_depth = df[GT_DIST_NAME].values
-    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-    error = df[GT_ERROR_NAME].values
-
-    linear_model1, res, linear_model2 = model_kbd_joint_linear(
-        actual_depth,
-        avg_50x50_anchor_disp,
-        focal,
-        baseline,
-        disjoint_depth_range,
-        compensate_dist=compensate_dist,
-        scaling_factor=scaling_factor,
-    )
-
-    param_path = os.path.join(save_path, LINEAR_OUT_PARAMS_FILE_NAME)
-
-    k_ = float(np.float64(res.x[0]))
-    delta_ = float(np.float64(res.x[1]))
-    b_ = float(np.float64(res.x[2]))
-
-    linear_model1_params = get_linear_model_params(linear_model1)
-    linear_model2_params = get_linear_model_params(linear_model2)
-
-    ### do not support the shared pointer
-
-    def create_default_linear_model_params():
-        default_linear_model = LinearRegression()
-        default_linear_model.coef_ = np.array([1.0])
-        default_linear_model.intercept_ = np.array(0.0)
-        return get_linear_model_params(default_linear_model)
-
-    params_dict = OrderedDict(
-        [
-            (
-                f"{0}-{disjoint_depth_range[0]-compensate_dist}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", create_default_linear_model_params()),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[0]-compensate_dist}-{disjoint_depth_range[0]}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", linear_model1_params),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}",
-                OrderedDict(
-                    [
-                        ("k", k_),
-                        ("delta", delta_),
-                        ("b", b_),
-                        ("linear_model_params", create_default_linear_model_params()),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist*scaling_factor}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", linear_model2_params),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[1]+compensate_dist*scaling_factor}-{np.inf}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", create_default_linear_model_params()),
-                    ]
-                ),
-            ),
-        ]
-    )
-
-    print(params_dict)
-
-    with open(param_path, "w") as f:
-        yaml.dump(params_dict, f, default_flow_style=None, sort_keys=False)
-    print("Generating done...")
-
-    plot_linear(
-        actual_depth,
-        avg_50x50_anchor_disp,
-        error,
-        focal,
-        baseline,
-        (linear_model1, res, linear_model2),
-        disjoint_depth_range,
-        compensate_dist=compensate_dist,
-        scaling_factor=scaling_factor,
-        save_path=save_path,
-    )
-
-    params_matrix = np.zeros((5, 5), dtype=np.float32)
-    params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
-    params_matrix[1, :] = np.array(
-        [1, 0, 0, linear_model1.coef_[0], linear_model1.intercept_]
-    )
-    params_matrix[2, :] = np.array([k_, delta_, b_, 1, 0])
-    params_matrix[3, :] = np.array(
-        [1, 0, 0, linear_model2.coef_[0], linear_model2.intercept_]
-    )
-    params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
-
-    return params_matrix, focal, baseline
-
-
 def apply_transformation_linear(
     path: str,
     params_matrix: np.ndarray,
@@ -647,6 +620,28 @@ def transformer_linear_impl(
         depth.tofile(f)
 
 
+def transformer_linear_vectorize_impl(
+    full_path,
+    H,
+    W,
+    focal,
+    baseline,
+    params_matrix,
+    disjoint_depth_range,
+    compensate_dist,
+    scaling_factor,    
+):
+    raw = load_raw(full_path, H, W)
+    disp_ = np.where(raw!=0, focal*baseline/raw, 0)
+    depth = modify_linear_vectorize(
+        disp_, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist, scaling_factor
+    )
+    depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
+    depth = depth.astype(np.uint16)
+    with open(full_path, "wb") as f:
+        depth.tofile(f)
+
+
 def apply_transformation_linear_parallel(
     path: str,
     params_matrix: np.ndarray,
@@ -668,6 +663,45 @@ def apply_transformation_linear_parallel(
                 tasks.append(
                     executor.submit(
                         transformer_linear_impl,
+                        full_path,
+                        H,
+                        W,
+                        focal,
+                        baseline,
+                        params_matrix,
+                        disjoint_depth_range,
+                        compensate_dist,
+                        scaling_factor,
+                    )
+                )
+
+        for future in tqdm(as_completed(tasks), total=len(tasks)):
+            future.result()  # Ensure any exceptions are raised
+
+    print("Transforming data done...")
+
+
+def apply_transformation_linear_vectorize_parallel(
+    path: str,
+    params_matrix: np.ndarray,
+    focal: float,
+    baseline: float,
+    disjoint_depth_range: tuple | list,
+    compensate_dist: float,
+    scaling_factor: float,
+    max_workers: int = 8,
+) -> None:
+    folders = retrive_folder_names(path)
+    tasks = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for folder in folders:
+            paths = retrive_file_names(os.path.join(path, folder, SUBFIX))
+            for p in paths:
+                full_path = os.path.join(path, folder, SUBFIX, p)
+                tasks.append(
+                    executor.submit(
+                        transformer_linear_vectorize_impl,
                         full_path,
                         H,
                         W,

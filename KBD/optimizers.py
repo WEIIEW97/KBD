@@ -31,8 +31,8 @@ class NelderMeadOptimizer:
         self.target_rate = target_rate
         self.reg_lambda = reg_lambda
 
-        self.initial_params = [1.0, 0, 0]
-        self.bounds = ([0, -10, -100], [10, 10, 100])
+        self.initial_params = [1.0, 0.01, 10]
+        self.bounds = None
 
         self.apply_weights = apply_weights
         self.apply_l2 = apply_l2
@@ -40,15 +40,17 @@ class NelderMeadOptimizer:
     def loss(self, params):
         k, delta, b = params
         pred = model(self.est, self.focal, self.baseline, k, delta, b)
-        residuals = pred - self.gt
+        residuals = self.gt - pred
         mse = np.mean(residuals**2)
         if self.apply_weights:
-            local_restric = np.abs(
-                (
-                    pred[self.gt < self.restriction_loc]
-                    - self.gt[self.gt < self.restriction_loc]
+            local_restric = np.mean(
+                np.abs(
+                    (
+                        pred[self.gt < self.restriction_loc]
+                        - self.gt[self.gt < self.restriction_loc]
+                    )
+                    / self.gt[self.gt < self.restriction_loc]
                 )
-                / self.gt[self.gt < self.restriction_loc]
             )
         else:
             local_restric = 0
@@ -71,7 +73,7 @@ class NelderMeadOptimizer:
 
     def run(self):
         result = self.optimize(self.initial_params, self.bounds)
-        print("Optimization Result:", result)
+        print("Optimization Result:")
 
         if result.success:
             optimized_params = result.x
@@ -132,15 +134,14 @@ class JointLinearSmoothingOptimizer:
         self.apply_l2 = apply_l2
         self.reg_lambda = reg_lambda
 
-        self.initial_params = [1.0, 0, 0]
+        self.initial_params = [1.0, 0.01, 10]
         self.bounds = ([0, -10, -100], [10, 10, 100])
 
     def segment(self):
         # find the range to calculate KBD params within
         mask = np.where(
-            self.gt
-            >= self.disjoint_depth_range[0] & self.gt
-            <= self.disjoint_depth_range[1]
+            (self.gt > self.disjoint_depth_range[0])
+            & (self.gt < self.disjoint_depth_range[1])
         )
         self.kbd_x = self.est[mask]
         self.kbd_y = self.gt[mask]
@@ -163,9 +164,8 @@ class JointLinearSmoothingOptimizer:
 
     def run(self):
         kbd_result = self.segment()
-
         if kbd_result is not None:
-            k_, delta_, b_ = kbd_result.x
+            k_, delta_, b_ = kbd_result
             fb_ = self.focal * self.baseline
             x_min = np.min(self.kbd_x)
             x_max = np.max(self.kbd_x)
@@ -223,7 +223,7 @@ class TrustRegionReflectiveOptimizer:
         self.restriction_loc = restriction_loc
         self.target_rate = target_rate
 
-        self.initial_params = [1.0, 0, 0]
+        self.initial_params = [1.0, 0.01, 10]
         self.bounds = ([0, -10, -100], [10, 10, 100])
 
     def loss(self, params):

@@ -72,7 +72,6 @@ def copy_all_subfolders(src: str, dst: str) -> None:
         cam_dest = os.path.join(dst, folder, cam_name)
         shutil.copy2(cam_source, cam_dest)
 
-
     print("Copying done ...")
 
 
@@ -99,7 +98,9 @@ def retrive_file_names(path: str) -> list[str]:
     return [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
 
 
-def calculate_mean_value(rootpath: str, folders: list[str], is_median:bool=False) -> dict[str, float]:
+def calculate_mean_value(
+    rootpath: str, folders: list[str], is_median: bool = False
+) -> dict[str, float]:
     dist_dict = {}
     for folder in folders:
         distance = folder.split("_")[0]
@@ -165,7 +166,10 @@ def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
 
     return focal, baseline
 
-def map_table_debug(df: pd.DataFrame, avg_dist_dict: dict, median_dist_dict: dict) -> tuple[float, float]:
+
+def map_table_debug(
+    df: pd.DataFrame, avg_dist_dict: dict, median_dist_dict: dict
+) -> tuple[float, float]:
     df[AVG_DIST_NAME] = df[GT_DIST_NAME].astype(str).map(avg_dist_dict)
     df[MEDIAN_DIST_NAME] = df[GT_DIST_NAME].astype(str).map(median_dist_dict)
     focal = df[FOCAL_NAME].iloc[0]  # assume focal value is the same
@@ -185,3 +189,11 @@ def sampling_strategy_criterion(path: str, table_path: str, save_path: str):
     _, _ = map_table_debug(df, mean_dists, median_dists)
 
     df.to_excel(save_path)
+
+
+def preprocessing(path, table_path, paid_dict=MAPPED_PAIR_DICT):
+    all_distances = retrive_folder_names(path)
+    mean_dists = calculate_mean_value(path, all_distances)
+    df = read_table(table_path, pair_dict=paid_dict)
+    focal, baseline = map_table(df, mean_dists)
+    return df, focal, baseline

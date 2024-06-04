@@ -19,7 +19,7 @@ GT_ERROR_NAME = "absolute_error"
 FOCAL_NAME = "focal"
 BASLINE_NAME = "baseline"
 
-OUT_PARAMS_FILE_NAME = "KBD_model_fitted_params.yaml"
+OUT_PARAMS_FILE_NAME = "KBD_model_fitted_params.json"
 LINEAR_OUT_PARAMS_FILE_NAME = "linear_" + OUT_PARAMS_FILE_NAME
 OUT_FIG_COMP_FILE_NAME = "compare.jpg"
 OUT_FIG_RESIDUAL_FILE_NAME = "fitted_residual.jpg"
