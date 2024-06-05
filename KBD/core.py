@@ -159,17 +159,18 @@ def modify_linear_vectorize2(
     mask4 = np.zeros_like(m)
     mask5 = np.zeros_like(m)
 
-    depth_ = np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
+    lb = disjoint_depth_range[0]
+    ub = disjoint_depth_range[1]
+    thr = compensate_dist
+    sf = scaling_factor
 
     conditions = [
-        (depth_ >= 0) & (depth_ < 0 + EPSILON),
-        (depth_ >= 0 + EPSILON) & (depth_ < disjoint_depth_range[0] - compensate_dist),
-        (depth_ >= disjoint_depth_range[0] - compensate_dist)
-        & (depth_ < disjoint_depth_range[0]),
-        (depth_ >= disjoint_depth_range[0]) & (depth_ < disjoint_depth_range[1]),
-        (depth_ >= disjoint_depth_range[1])
-        & (depth_ < disjoint_depth_range[1] + compensate_dist * scaling_factor),
-        depth_ >= (disjoint_depth_range[1] + compensate_dist * scaling_factor),
+        (m != 0) & (m > fb / (0 + EPSILON)),
+        (m != 0) & (m <= fb / (0 + EPSILON)) & (m > fb / (lb - thr)),
+        (m != 0) & (m <= fb / (lb - thr)) & (m > fb / lb),
+        (m != 0) & (m <= fb / lb) & (m > fb / ub),
+        (m != 0) & (m <= fb / ub) & (m > fb / (ub + thr * sf)),
+        (m != 0) & (m <= fb / (ub + thr * sf)),
     ]
 
     # Apply conditions to masks
