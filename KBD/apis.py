@@ -32,7 +32,7 @@ from .constants import (
     OUT_FIG_ERROR_RATE_FILE_NAME,
     LINEAR_OUT_PARAMS_FILE_NAME,
 )
-from .core import modify, modify_linear, modify_linear_vectorize
+from .core import modify, modify_linear, modify_linear_vectorize, modify_linear_vectorize2
 from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear
 from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
 from .optimizers import (
@@ -631,9 +631,10 @@ def transformer_linear_vectorize_impl(
     compensate_dist,
     scaling_factor,    
 ):
-    raw = load_raw(full_path, H, W)
-    disp_ = np.where(raw!=0, focal*baseline/raw, 0)
-    depth = modify_linear_vectorize(
+    raw = load_raw(full_path, H, W).astype(np.float64)
+    disp_ = np.divide(focal*baseline, raw, out=np.zeros_like(raw), where=(raw!=0))
+    # disp_ = np.where(raw!=0, focal*baseline/raw, 0)
+    depth = modify_linear_vectorize2(
         disp_, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist, scaling_factor
     )
     depth = np.clip(depth, UINT16_MIN, UINT16_MAX)

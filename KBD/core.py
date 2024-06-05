@@ -134,3 +134,76 @@ def modify_linear_vectorize(
     out[mask5] = fb / m[mask5]
 
     return out
+
+
+def modify_linear_vectorize2(
+    m: np.ndarray,
+    focal: float,
+    baseline: float,
+    param_matrix: np.ndarray,
+    disjoint_depth_range: tuple | list,
+    compensate_dist: float,
+    scaling_factor: float,
+) -> np.ndarray:
+    r"""
+    input m is disparity
+    output depth follow the formula below:
+    D = k*fb/(alpha*d + beta + delta) + b
+    """
+    fb = focal * baseline
+    out = np.zeros_like(m)
+    mask0 = np.zeros_like(m)
+    mask1 = np.zeros_like(m)
+    mask2 = np.zeros_like(m)
+    mask3 = np.zeros_like(m)
+    mask4 = np.zeros_like(m)
+    mask5 = np.zeros_like(m)
+
+    depth_ = np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
+
+    conditions = [
+        (depth_ >= 0) & (depth_ < 0 + EPSILON),
+        (depth_ >= 0 + EPSILON) & (depth_ < disjoint_depth_range[0] - compensate_dist),
+        (depth_ >= disjoint_depth_range[0] - compensate_dist)
+        & (depth_ < disjoint_depth_range[0]),
+        (depth_ >= disjoint_depth_range[0]) & (depth_ < disjoint_depth_range[1]),
+        (depth_ >= disjoint_depth_range[1])
+        & (depth_ < disjoint_depth_range[1] + compensate_dist * scaling_factor),
+        depth_ >= (disjoint_depth_range[1] + compensate_dist * scaling_factor),
+    ]
+
+    # Apply conditions to masks
+    mask0[conditions[0]] = 1
+    mask1[conditions[1]] = 1
+    mask2[conditions[2]] = 1
+    mask3[conditions[3]] = 1
+    mask4[conditions[4]] = 1
+    mask5[conditions[5]] = 1
+
+    out = (
+        mask0 * 0
+        + mask1 * np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
+        + mask2
+        * np.divide(
+            fb,
+            param_matrix[1, 3] * m + param_matrix[1, 4],
+            out=np.zeros_like(m),
+            where=m != 0,
+        )
+        + mask3
+        * (
+            param_matrix[2, 0]
+            * np.divide(fb, m + param_matrix[2, 1], out=np.zeros_like(m), where=m != 0)
+            + param_matrix[2, 2]
+        )
+        + mask4
+        * np.divide(
+            fb,
+            param_matrix[3, 3] * m + param_matrix[3, 4],
+            out=np.zeros_like(m),
+            where=m != 0,
+        )
+        + mask5 * np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
+    )
+
+    return out
