@@ -147,7 +147,7 @@ def modify_linear_vectorize2(
 ) -> np.ndarray:
     r"""
     input m is disparity
-    output depth follow the formula below:
+    output depth follows the formula below:
     D = k*fb/(alpha*d + beta + delta) + b
     """
     fb = focal * baseline
@@ -157,7 +157,6 @@ def modify_linear_vectorize2(
     mask2 = np.zeros_like(m)
     mask3 = np.zeros_like(m)
     mask4 = np.zeros_like(m)
-    mask5 = np.zeros_like(m)
 
     lb = disjoint_depth_range[0]
     ub = disjoint_depth_range[1]
@@ -165,8 +164,7 @@ def modify_linear_vectorize2(
     sf = scaling_factor
 
     conditions = [
-        (m != 0) & (m > fb / (0 + EPSILON)),
-        (m != 0) & (m <= fb / (0 + EPSILON)) & (m > fb / (lb - thr)),
+        (m != 0) & (m > fb / (lb - thr)),
         (m != 0) & (m <= fb / (lb - thr)) & (m > fb / lb),
         (m != 0) & (m <= fb / lb) & (m > fb / ub),
         (m != 0) & (m <= fb / ub) & (m > fb / (ub + thr * sf)),
@@ -179,32 +177,30 @@ def modify_linear_vectorize2(
     mask2[conditions[2]] = 1
     mask3[conditions[3]] = 1
     mask4[conditions[4]] = 1
-    mask5[conditions[5]] = 1
 
     out = (
-        mask0 * 0
-        + mask1 * np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
-        + mask2
+        mask0 * np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
+        + mask1
         * np.divide(
             fb,
             param_matrix[1, 3] * m + param_matrix[1, 4],
             out=np.zeros_like(m),
             where=m != 0,
         )
-        + mask3
+        + mask2
         * (
             param_matrix[2, 0]
             * np.divide(fb, m + param_matrix[2, 1], out=np.zeros_like(m), where=m != 0)
             + param_matrix[2, 2]
         )
-        + mask4
+        + mask3
         * np.divide(
             fb,
             param_matrix[3, 3] * m + param_matrix[3, 4],
             out=np.zeros_like(m),
             where=m != 0,
         )
-        + mask5 * np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
+        + mask4 * np.divide(fb, m, out=np.zeros_like(m), where=m != 0)
     )
 
     return out
