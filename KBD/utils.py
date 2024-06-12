@@ -69,6 +69,25 @@ def json_reader(path):
     return data
 
 
+def json_to_numpy(data):
+    values = []
+
+    for _, value in data.items():
+        values.extend(
+            [
+                value["k"],
+                value["delta"],
+                value["b"],
+                value["linear_model_params"]["alpha"][0],
+                value["linear_model_params"]["beta"],
+            ]
+        )
+
+    matrix = np.array(values).reshape(5, 5)
+
+    return matrix
+
+
 def yaml_dumper(data, savepath):
     with open(savepath, "w") as f:
         yaml.dump(data, f, default_flow_style=None, sort_keys=False)
