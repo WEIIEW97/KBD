@@ -147,8 +147,8 @@ class JointLinearSmoothingOptimizer:
         self.kbd_y = self.gt[mask]
 
         kbd_base_optimizer = NelderMeadOptimizer(
-            self.kbd_y,
-            self.kbd_x,
+            self.gt,
+            self.est,
             self.focal,
             self.baseline,
             self.local_restriction_weights,
@@ -175,13 +175,6 @@ class JointLinearSmoothingOptimizer:
 
             x_hat_min = fb_ / y_hat_max
             x_hat_max = fb_ / y_hat_min
-
-            print(
-                f"KBD model prediction on {x_max} is {y_hat_min}, where GT detph is {fb_ / x_max} and prediction disp is {x_hat_max}"
-            )
-            print(
-                f"KBD model prediction on {x_min} is {y_hat_max}, where GT detph is {fb_ / x_min} and prediction disp is {x_hat_min}"
-            )
 
             pre_y = y_hat_min - self.compensate_dist
             after_y = y_hat_max + self.compensate_dist * self.scaling_factor

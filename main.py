@@ -2,12 +2,7 @@ from KBD.apis import (
     generate_parameters_linear,
     apply_transformation_linear_parallel,
     apply_transformation_linear_vectorize_parallel,
-    generate_parameters,
-    generate_parameters_kernel,
-    generate_parameters_trf,
-    apply_transformation_parallel,
 )
-from KBD.plotters import plot_prediction_curve
 from KBD.helpers import parallel_copy, sampling_strategy_criterion
 from KBD.utils import generate_linear_KBD_data, generate_global_KBD_data
 from KBD.constants import (
@@ -28,7 +23,7 @@ if __name__ == "__main__":
     # l2_regularization_param = (0.01,)
     # disjoint_depth_range = [1000, 2900]
     # pseudo_range = (100, 5000)
-    compensate_dist = 200
+    compensate_dist = 400
     scaling_factor = 10
 
     camera_types = [
@@ -67,10 +62,10 @@ if __name__ == "__main__":
             compensate_dist=compensate_dist,
             scaling_factor=scaling_factor,
         )
-        parallel_copy(root_dir, copy_dir)
-        parallel_copy(root_dir, copy_dir2)
-        apply_transformation_linear_parallel(copy_dir, matrix, focal, baseline, range, compensate_dist, scaling_factor)
-        apply_transformation_linear_vectorize_parallel(copy_dir2, matrix, focal, baseline, range, compensate_dist, scaling_factor)
+        # parallel_copy(root_dir, copy_dir)
+        # parallel_copy(root_dir, copy_dir2)
+        # apply_transformation_linear_parallel(copy_dir, matrix, focal, baseline, range, compensate_dist, scaling_factor)
+        # apply_transformation_linear_vectorize_parallel(copy_dir2, matrix, focal, baseline, range, compensate_dist, scaling_factor)
     # methods = ["gaussian", "polynomial", "laplacian"]
     # for method in methods:
     #     ret = generate_parameters_adv(

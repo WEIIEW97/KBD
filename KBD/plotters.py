@@ -1009,21 +1009,3 @@ def plot_linear(
     if save_path is not None:
         plt.savefig(comp_path)
     # plt.show()
-
-
-def plot_prediction_curve(
-    func,
-    func_args,
-    save_path=None,
-):
-    x_values, y_values = func(*func_args)
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(x_values, y_values, label="Predicted Depth", color="blue")
-    plt.xlabel("Distance (mm)")
-    plt.ylabel("Predicted Value")
-    plt.title("Prediction Curve")
-    plt.legend()
-    if save_path is not None:
-        plt.savefig(save_path)
-    # plt.show()

@@ -32,10 +32,9 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
 
 
 if __name__ == "__main__":
-    root_dir = "/home/william/Codes/KBD/data/N09ASH24DH0054/image_data"
-    tablepath = (
-        "/home/william/Codes/KBD/data/N09ASH24DH0054/depthquality-2024-05-22.xlsx"
-    )
+    cwd = os.getcwd()
+    root_dir = cwd + "/data/N09ASH24DH0054/image_data"
+    tablepath = cwd + "/data/N09ASH24DH0054/depthquality-2024-05-22.xlsx"
 
     res = eval(root_dir, tablepath)
     print(res)

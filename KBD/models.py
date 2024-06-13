@@ -331,7 +331,13 @@ def model_kernel_fit(actual_depth, disp, focal, baseline, method="gaussian"):
 
 
 def linear_KBD_piecewise_func(
-    x, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist=200
+    x,
+    focal,
+    baseline,
+    params_matrix,
+    disjoint_depth_range,
+    compensate_dist=200,
+    scaling_factor=10,
 ) -> float:
     k1, delta1, b1, coef1, intercept1 = params_matrix[1]
     k2, delta2, b2, coef2, intercept2 = params_matrix[2]
@@ -344,15 +350,19 @@ def linear_KBD_piecewise_func(
 
     if x < disjoint_depth_range[0] - compensate_dist:
         return x
-    elif disjoint_depth_range[0] - compensate_dist <= x < disjoint_depth_range[0]:
+    if disjoint_depth_range[0] - compensate_dist <= x < disjoint_depth_range[0]:
         return FB / (coef1 * disp + intercept1)
-    elif disjoint_depth_range[0] <= x < disjoint_depth_range[1]:
+    if disjoint_depth_range[0] <= x < disjoint_depth_range[1]:
         return k2 * FB / (disp + delta2) + b2
-    elif disjoint_depth_range[1] <= x < disjoint_depth_range[1] + compensate_dist:
+    if (
+        disjoint_depth_range[1]
+        <= x
+        < disjoint_depth_range[1] + compensate_dist * scaling_factor
+    ):
         return FB / (coef3 * disp + intercept3)
     else:
         return x
-
+    
 
 def global_KBD_func(x, focal, baseline, k, delta, b):
     FB = focal * baseline

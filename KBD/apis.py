@@ -237,6 +237,8 @@ def generate_parameters_linear(
         disjoint_depth_range,
         compensate_dist,
         scaling_factor,
+        apply_weights=True,
+        apply_l2=True,
     )
 
     linear_model1, res, linear_model2 = jlm.run()
