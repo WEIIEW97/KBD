@@ -10,7 +10,7 @@ from KBD.constants import (
     OUT_FIG_GLOBAL_PREDICTION_FILE_NAME,
     OUT_FIG_LINEAR_PREDICTION_FILE_NAME,
 )
-from KBD.eval import eval
+from KBD.eval import eval, check_monotonicity
 import os
 
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         camera_types, table_names, disjoint_depth_ranges
     ):
         print(f"processing {type} now with {table_name} ...")
-        if type != "N09ASH24DH0015":
+        if type != "N09ASH24DH0054":
             continue
         root_dir = f"{cwd}/data/{type}/image_data"
         copy_dir = f"{cwd}/data/{type}/image_data_transformed_linear"
@@ -62,6 +62,11 @@ if __name__ == "__main__":
             compensate_dist=compensate_dist,
             scaling_factor=scaling_factor,
         )
+        judgement = check_monotonicity(0, 5000, focal, baseline, matrix, [601, 3000], compensate_dist, scaling_factor)
+        if judgement:
+            print("Optimization task succeeded!")
+        else:
+            raise ValueError("Optimization task failed. Cannot gurantee the monotonicity...")
         # parallel_copy(root_dir, copy_dir)
         # parallel_copy(root_dir, copy_dir2)
         # apply_transformation_linear_parallel(copy_dir, matrix, focal, baseline, range, compensate_dist, scaling_factor)

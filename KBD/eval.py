@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
 
+from KBD.models import linear_KBD_piecewise_func
 from .helpers import preprocessing
 from .constants import MAPPED_PAIR_DICT, AVG_DIST_NAME, GT_DIST_NAME, GT_ERROR_NAME
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -29,6 +31,49 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
 
     acceptance = accept / total_bins
     return eval_res, acceptance
+
+
+def _is_monotonically_increasing(lst):
+    """
+    Check if a list of numbers is monotonically increasing.
+
+    Parameters:
+    lst (list): A list of numbers.
+
+    Returns:
+    bool: True if the list is monotonically increasing, False otherwise.
+    """
+    for i in range(len(lst) - 1):
+        if lst[i] > lst[i + 1]:
+            print(f"Monotonicity fails at point:  y={lst[i-10:i+10]}), index is {i}")
+            return False
+    return True
+
+
+def check_monotonicity(
+    minv,
+    maxv,
+    focal,
+    baseline,
+    param_matrix,
+    disjoint_depth_range,
+    compensate_dist,
+    scaling_factor,
+):
+    x_values = np.arange(minv, maxv, step=1)
+    y_values = [
+        linear_KBD_piecewise_func(
+            x,
+            focal,
+            baseline,
+            param_matrix,
+            disjoint_depth_range,
+            compensate_dist,
+            scaling_factor,
+        )
+        for x in x_values
+    ]
+    return _is_monotonically_increasing(y_values)
 
 
 if __name__ == "__main__":
