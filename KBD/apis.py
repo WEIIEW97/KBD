@@ -32,7 +32,12 @@ from .constants import (
     OUT_FIG_ERROR_RATE_FILE_NAME,
     LINEAR_OUT_PARAMS_FILE_NAME,
 )
-from .core import modify, modify_linear, modify_linear_vectorize, modify_linear_vectorize2
+from .core import (
+    modify,
+    modify_linear,
+    modify_linear_vectorize,
+    modify_linear_vectorize2,
+)
 from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear
 from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
 from .optimizers import (
@@ -48,6 +53,7 @@ def generate_parameters(
     save_path: str,
     use_l2: bool = False,
     reg_lambda: float = 0.01,
+    plot: bool = False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
@@ -95,13 +101,14 @@ def generate_parameters(
     json_dumper(params_dict, param_path)
     print("Generating done...")
 
-    pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
-    residual = pred - actual_depth
-    plot_residuals(residual, error, actual_depth, residual_path)
-    plot_error_rate(residual, error, actual_depth, error_rate_path)
-    plot_comparison(
-        actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-    )
+    if plot:
+        pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
+        residual = pred - actual_depth
+        plot_residuals(residual, error, actual_depth, residual_path)
+        plot_error_rate(residual, error, actual_depth, error_rate_path)
+        plot_comparison(
+            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+        )
 
     return k_, delta_, b_, focal, baseline
 
@@ -110,6 +117,7 @@ def generate_parameters_trf(
     path: str,
     table_path: str,
     save_path: str,
+    plot: bool = False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
@@ -141,13 +149,14 @@ def generate_parameters_trf(
     json_dumper(params_dict, param_path)
     print("Generating done...")
 
-    pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
-    residual = pred - actual_depth
-    plot_residuals(residual, error, actual_depth, residual_path)
-    plot_error_rate(residual, error, actual_depth, error_rate_path)
-    plot_comparison(
-        actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-    )
+    if plot:
+        pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
+        residual = pred - actual_depth
+        plot_residuals(residual, error, actual_depth, residual_path)
+        plot_error_rate(residual, error, actual_depth, error_rate_path)
+        plot_comparison(
+            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+        )
 
     return k_, delta_, b_, focal, baseline
 
@@ -222,6 +231,7 @@ def generate_parameters_linear(
     disjoint_depth_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
+    plot: bool = False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
@@ -325,18 +335,19 @@ def generate_parameters_linear(
     json_dumper(params_dict, param_path)
     print("Generating done...")
 
-    plot_linear(
-        actual_depth,
-        avg_50x50_anchor_disp,
-        error,
-        focal,
-        baseline,
-        (linear_model1, res, linear_model2),
-        disjoint_depth_range,
-        compensate_dist=compensate_dist,
-        scaling_factor=scaling_factor,
-        save_path=save_path,
-    )
+    if plot:
+        plot_linear(
+            actual_depth,
+            avg_50x50_anchor_disp,
+            error,
+            focal,
+            baseline,
+            (linear_model1, res, linear_model2),
+            disjoint_depth_range,
+            compensate_dist=compensate_dist,
+            scaling_factor=scaling_factor,
+            save_path=save_path,
+        )
 
     params_matrix = np.zeros((5, 5), dtype=np.float32)
     params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
@@ -357,6 +368,7 @@ def generate_parameters_kernel(
     table_path: str,
     save_path: str,
     method="gaussian",
+    plot: bool = False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
@@ -392,22 +404,23 @@ def generate_parameters_kernel(
         json_dumper(params_dict, param_path)
         print("Generating done...")
 
-        pred = (
-            k
-            * focal
-            * baseline
-            / (
-                avg_50x50_anchor_disp
-                + gaussian_kernel(avg_50x50_anchor_disp, mu, sigma)
+        if plot:
+            pred = (
+                k
+                * focal
+                * baseline
+                / (
+                    avg_50x50_anchor_disp
+                    + gaussian_kernel(avg_50x50_anchor_disp, mu, sigma)
+                )
+                + b
             )
-            + b
-        )
-        residual = pred - actual_depth
-        plot_residuals(residual, error, actual_depth, residual_path)
-        plot_error_rate(residual, error, actual_depth, error_rate_path)
-        plot_comparison(
-            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-        )
+            residual = pred - actual_depth
+            plot_residuals(residual, error, actual_depth, residual_path)
+            plot_error_rate(residual, error, actual_depth, error_rate_path)
+            plot_comparison(
+                actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+            )
 
         return k, b, mu, sigma, focal, baseline
 
@@ -430,22 +443,23 @@ def generate_parameters_kernel(
         json_dumper(params_dict, param_path)
         print("Generating done...")
 
-        pred = (
-            k
-            * focal
-            * baseline
-            / (
-                avg_50x50_anchor_disp
-                + polynomial_kernel_n2(avg_50x50_anchor_disp, a, b, c)
+        if plot:
+            pred = (
+                k
+                * focal
+                * baseline
+                / (
+                    avg_50x50_anchor_disp
+                    + polynomial_kernel_n2(avg_50x50_anchor_disp, a, b, c)
+                )
+                + b_
             )
-            + b_
-        )
-        residual = pred - actual_depth
-        plot_residuals(residual, error, actual_depth, residual_path)
-        plot_error_rate(residual, error, actual_depth, error_rate_path)
-        plot_comparison(
-            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-        )
+            residual = pred - actual_depth
+            plot_residuals(residual, error, actual_depth, residual_path)
+            plot_error_rate(residual, error, actual_depth, error_rate_path)
+            plot_comparison(
+                actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+            )
 
         return k, b_, a, b, c, focal, baseline
 
@@ -465,22 +479,23 @@ def generate_parameters_kernel(
         json_dumper(params_dict, param_path)
         print("Generating done...")
 
-        pred = (
-            k
-            * focal
-            * baseline
-            / (
-                avg_50x50_anchor_disp
-                + laplacian_kernel(avg_50x50_anchor_disp, mu, sigma)
+        if plot:
+            pred = (
+                k
+                * focal
+                * baseline
+                / (
+                    avg_50x50_anchor_disp
+                    + laplacian_kernel(avg_50x50_anchor_disp, mu, sigma)
+                )
+                + b
             )
-            + b
-        )
-        residual = pred - actual_depth
-        plot_residuals(residual, error, actual_depth, residual_path)
-        plot_error_rate(residual, error, actual_depth, error_rate_path)
-        plot_comparison(
-            actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-        )
+            residual = pred - actual_depth
+            plot_residuals(residual, error, actual_depth, residual_path)
+            plot_error_rate(residual, error, actual_depth, error_rate_path)
+            plot_comparison(
+                actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
+            )
 
         return k, b, mu, sigma, focal, baseline
 
@@ -631,13 +646,19 @@ def transformer_linear_vectorize_impl(
     params_matrix,
     disjoint_depth_range,
     compensate_dist,
-    scaling_factor,    
+    scaling_factor,
 ):
     raw = load_raw(full_path, H, W).astype(np.float64)
-    disp_ = np.divide(focal*baseline, raw, out=np.zeros_like(raw), where=(raw!=0))
+    disp_ = np.divide(focal * baseline, raw, out=np.zeros_like(raw), where=(raw != 0))
     # disp_ = np.where(raw!=0, focal*baseline/raw, 0)
     depth = modify_linear_vectorize2(
-        disp_, focal, baseline, params_matrix, disjoint_depth_range, compensate_dist, scaling_factor
+        disp_,
+        focal,
+        baseline,
+        params_matrix,
+        disjoint_depth_range,
+        compensate_dist,
+        scaling_factor,
     )
     depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
     depth = depth.astype(np.uint16)

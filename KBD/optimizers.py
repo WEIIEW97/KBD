@@ -134,6 +134,8 @@ class JointLinearSmoothingOptimizer:
         self.apply_l2 = apply_l2
         self.reg_lambda = reg_lambda
 
+        self.fb = focal * baseline
+
         self.initial_params = [1.0, 0.01, 10]
         self.bounds = ([0, -10, -100], [10, 10, 100])
 
@@ -162,25 +164,30 @@ class JointLinearSmoothingOptimizer:
         kbd_result = kbd_base_optimizer.run()
         return kbd_result
 
+    def calculate_eta(self):
+        lb = self.disjoint_depth_range[0]
+        # lb shoud be restrictly greater than 1.000001
+        eta = self.fb/[lb-1] - self.fb/lb
+        return eta
+
     def run(self):
         kbd_result = self.segment()
         if kbd_result is not None:
             k_, delta_, b_ = kbd_result
-            fb_ = self.focal * self.baseline
             x_min = np.min(self.kbd_x)
             x_max = np.max(self.kbd_x)
 
-            y_hat_max = k_ * fb_ / (x_min + delta_) + b_
-            y_hat_min = k_ * fb_ / (x_max + delta_) + b_
+            y_hat_max = k_ * self.fb / (x_min + delta_) + b_
+            y_hat_min = k_ * self.fb / (x_max + delta_) + b_
 
-            x_hat_min = fb_ / y_hat_max
-            x_hat_max = fb_ / y_hat_min
+            x_hat_min = self.fb / y_hat_max
+            x_hat_max = self.fb / y_hat_min
 
             pre_y = y_hat_min - self.compensate_dist
             after_y = y_hat_max + self.compensate_dist * self.scaling_factor
 
-            pre_x = fb_ / pre_y
-            after_x = fb_ / after_y
+            pre_x = self.fb / pre_y
+            after_x = self.fb / after_y
 
             lm1 = LinearRegression()
             x1 = np.array([pre_x, x_max])
@@ -195,6 +202,27 @@ class JointLinearSmoothingOptimizer:
             return lm1, kbd_result, lm2
 
         return
+    
+    # def run2(self):
+    #     kbd_result = self.segment()
+    #     if kbd_result is not None:
+    #         k_, delta_, b_ = kbd_result
+    #         x_min = np.min(self.kbd_x)
+    #         x_max = np.max(self.kbd_x)
+
+    #         y_hat_max = k_ * self.fb / (x_min + delta_) + b_
+    #         y_hat_min = k_ * self.fb / (x_max + delta_) + b_
+
+    #         eta = self.calculate_eta()
+    #         y_hat_max_prime = k_ * self.fb / (x_min + delta_ - eta) + b_
+    #         y_hat_min_prime = k_ * self.fb / (x_max + delta_ + eta) + b_
+
+    #         x_hat_min_prime = self.fb / y_hat_max_prime
+    #         x_hat_max_prime = self.fb / y_hat_min_prime
+
+    #         pre_y = y_hat_min - self.compensate_dist
+    #         after_y = y_hat_max + self.compensate_dist * self.scaling_factor
+
 
 
 class TrustRegionReflectiveOptimizer:
