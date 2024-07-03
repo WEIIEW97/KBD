@@ -253,87 +253,9 @@ def generate_parameters_linear(
 
     linear_model1, res, linear_model2 = jlm.run()
 
-    param_path = os.path.join(save_path, LINEAR_OUT_PARAMS_FILE_NAME)
-
     k_ = float(np.float64(res[0]))
     delta_ = float(np.float64(res[1]))
     b_ = float(np.float64(res[2]))
-
-    linear_model1_params = get_linear_model_params(linear_model1)
-    linear_model2_params = get_linear_model_params(linear_model2)
-
-    ### do not support the shared pointer
-
-    def create_default_linear_model_params():
-        default_linear_model = LinearRegression()
-        default_linear_model.coef_ = np.array([1.0])
-        default_linear_model.intercept_ = np.array(0.0)
-        return get_linear_model_params(default_linear_model)
-
-    params_dict = OrderedDict(
-        [
-            (
-                f"{0}-{disjoint_depth_range[0]-compensate_dist}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", create_default_linear_model_params()),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[0]-compensate_dist}-{disjoint_depth_range[0]}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", linear_model1_params),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[0]}-{disjoint_depth_range[1]}",
-                OrderedDict(
-                    [
-                        ("k", k_),
-                        ("delta", delta_),
-                        ("b", b_),
-                        ("linear_model_params", create_default_linear_model_params()),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[1]}-{disjoint_depth_range[1]+compensate_dist*scaling_factor}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", linear_model2_params),
-                    ]
-                ),
-            ),
-            (
-                f"{disjoint_depth_range[1]+compensate_dist*scaling_factor}-{np.inf}",
-                OrderedDict(
-                    [
-                        ("k", 1),
-                        ("delta", 0),
-                        ("b", 0),
-                        ("linear_model_params", create_default_linear_model_params()),
-                    ]
-                ),
-            ),
-        ]
-    )
-
-    print(params_dict)
-
-    json_dumper(params_dict, param_path)
-    print("Generating done...")
 
     if plot:
         plot_linear(
@@ -348,7 +270,7 @@ def generate_parameters_linear(
             scaling_factor=scaling_factor,
             save_path=save_path,
         )
-
+    
     params_matrix = np.zeros((5, 5), dtype=np.float32)
     params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
     params_matrix[1, :] = np.array(

@@ -120,3 +120,29 @@ def generate_global_KBD_data(
     y_values = [global_KBD_func(x, focal, baseline, k, delta, b) for x in x_values]
     y_values = np.array(y_values).astype(np.uint16)
     return x_values, y_values
+
+
+def save_arrays_to_txt(savepath, arr1d, arr2d):
+    with open(savepath, 'w') as f:
+        f.write('disp_nodes:\n')
+        np.savetxt(f, arr1d, fmt='%d', newline=' ')
+        f.write('\n\n')
+        f.write('kbd_params:\n')
+        np.savetxt(f, arr2d, fmt='%.16f')
+    
+    print(f"Arrays have been saved to {savepath}")
+
+
+def save_arrays_to_json(savepath, arr1d, arr2d):
+    arr1d_lst = arr1d.tolist()
+    arr2d_lst = arr2d.tolist()
+
+    params = {
+        "disp_nodes":arr1d_lst,
+        "kbd_params":arr2d_lst
+    }
+
+    with open(savepath, 'w') as f:
+        json.dump(params, f, indent=4)
+
+    print(f"Arrays have been saved to {savepath}")
