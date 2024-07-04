@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import os
 import numpy as np
 import pandas as pd
 import json
+import shutil
 
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
-
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 
 ##################### predefined constants #####################
 DISP_VAL_MAX_UINT16 = 32767
@@ -45,6 +49,20 @@ def retrive_folder_names(path: str) -> list[str]:
     return [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
 
 
+def retrive_file_names(path: str) -> list[str]:
+    return [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+
+
+def copy_files_in_directory(src: str, dst: str) -> None:
+    os.makedirs(dst, exist_ok=True)
+    files = retrive_file_names(src)
+
+    for file in files:
+        source = os.path.join(src, file)
+        destination = os.path.join(dst, file)
+        shutil.copy2(source, destination)
+
+
 def calculate_mean_value(
     rootpath: str, folders: list[str], is_median: bool = False
 ) -> dict[str, float]:
@@ -77,8 +95,12 @@ def read_excel(path: str) -> pd.DataFrame:
     return pd.read_excel(path)
 
 
+def read_csv(path: str) -> pd.DataFrame:
+    return pd.read_csv(path)
+
+
 def read_table(path: str, pair_dict: dict) -> pd.DataFrame:
-    df = read_excel(path)
+    df = read_csv(path)
     df_sel = df[list(pair_dict.keys())]
     needed_df = df_sel.rename(columns=pair_dict)
     return needed_df
@@ -382,6 +404,105 @@ def save_arrays_to_json(savepath, arr1d, arr2d):
     print(f"Arrays have been saved to {savepath}")
 
 
+def parallel_copy(src: str, dst: str) -> None:
+    folders = retrive_folder_names(src)
+    cam_name = "camparam.txt"
+
+    with ThreadPoolExecutor() as executor:
+        for folder in tqdm(folders, desc="Copying subfolders ..."):
+            source_path = os.path.join(src, folder, SUBFIX)
+            destination_path = os.path.join(dst, folder, SUBFIX)
+            cam_source = os.path.join(src, folder, cam_name)
+            cam_dest = os.path.join(dst, folder, cam_name)
+            executor.submit(copy_files_in_directory, source_path, destination_path)
+            executor.submit(shutil.copy2, cam_source, cam_dest)
+    print("Copying done ...")
+
+
+def apply_transformation_linear(
+    path: str,
+    params_matrix: np.ndarray,
+    focal: float,
+    baseline: float,
+    disjoint_depth_range: tuple,
+    compensate_dist: float,
+    scaling_factor: float,
+) -> None:
+    folders = retrive_folder_names(path)
+
+    for folder in tqdm(folders):
+        paths = retrive_file_names(os.path.join(path, folder, SUBFIX))
+        for p in paths:
+            full_path = os.path.join(path, folder, SUBFIX, p)
+            raw = load_raw(full_path, H, W)
+            depth = modify_linear_vectorize(
+                raw,
+                focal,
+                baseline,
+                params_matrix,
+                disjoint_depth_range,
+                compensate_dist,
+                scaling_factor,
+            )
+            # make sure raw value is within range(0, 65535)
+            depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
+            depth = depth.astype(np.uint16)
+            with open(full_path, "wb") as f:
+                depth.tofile(f)
+
+    print("Transformating data done ...")
+
+
+def modify_linear_vectorize(
+    m: np.ndarray,
+    focal: float,
+    baseline: float,
+    param_matrix: np.ndarray,
+    disjoint_depth_range: tuple | list,
+    compensate_dist: float,
+    scaling_factor: float,
+) -> np.ndarray:
+    r"""
+    input m is disparity
+    output depth follow the formula below:
+    D = k*fb/(alpha*d + beta + delta) + b
+    """
+    fb = focal * baseline
+    out = np.zeros_like(m)
+
+    depth_ = np.where(m != 0, fb / m, 0)
+
+    mask0 = np.where((depth_ >= 0) & (depth_ < 0 + EPSILON))
+    mask1 = np.where(
+        (depth_ >= 0 + EPSILON) & (depth_ < disjoint_depth_range[0] - compensate_dist)
+    )
+    mask2 = np.where(
+        (depth_ >= disjoint_depth_range[0] - compensate_dist)
+        & (depth_ < disjoint_depth_range[0])
+    )
+    mask3 = np.where(
+        (depth_ >= disjoint_depth_range[0]) & (depth_ < disjoint_depth_range[1])
+    )
+    mask4 = np.where(
+        (depth_ >= disjoint_depth_range[1])
+        & (depth_ < disjoint_depth_range[1] + compensate_dist * scaling_factor)
+    )
+    mask5 = np.where(
+        (depth_) >= disjoint_depth_range[1] + compensate_dist * scaling_factor
+    )
+
+    out[mask0] = 0
+    out[mask1] = fb / m[mask1]
+    out[mask2] = fb / (param_matrix[1, 3] * m[mask2] + param_matrix[1, 4])
+    out[mask3] = (
+        param_matrix[2, 0] * fb / (m[mask3] + param_matrix[2, 1]) + param_matrix[2, 2]
+    )
+    out[mask4] = fb / (param_matrix[3, 3] * m[mask4] + param_matrix[3, 4])
+    out[mask5] = fb / m[mask5]
+
+    return out
+
+
 if __name__ == "__main__":
     cwd = os.getcwd()
 
@@ -392,11 +513,9 @@ if __name__ == "__main__":
     camera_type = "N09ASH24DH0015"
     table_name = "depthquality-2024-05-20.xlsx"
 
-
     print(f"processing {camera_type} now with {table_name} ...")
     root_dir = f"{cwd}/data/{camera_type}/image_data"
     copy_dir = f"{cwd}/data/{camera_type}/image_data_transformed_linear"
-    copy_dir2 = f"{cwd}/data/{camera_type}/image_data_transformed_linear2"
     save_dir = f"{cwd}/data/{camera_type}"
     tablepath = f"{cwd}/data/{camera_type}/{table_name}"
     save_params_path = save_dir + "/segmented_linear_KBD_params.json"
@@ -409,6 +528,8 @@ if __name__ == "__main__":
         )
         print("This may not be the ideal data to be tackled with.")
         print("*********** END OF WARNING *************")
+
+    print("Beging to generate parameters ...")
     matrix, focal, baseline = generate_parameters_linear(
         path=root_dir,
         table_path=tablepath,
@@ -430,3 +551,17 @@ if __name__ == "__main__":
 
     matrix_param_by_disp = matrix[::-1, :]
     save_arrays_to_json(save_params_path, disp_nodes_uint16, matrix_param_by_disp)
+    print("===> Working done! Parameters are being generated.")
+
+    print("Beging to copy and transform depth raws ...")
+    parallel_copy(root_dir, copy_dir)
+    apply_transformation_linear(
+        copy_dir,
+        matrix,
+        focal,
+        baseline,
+        disjoint_depth_range,
+        compensate_dist,
+        scaling_factor,
+    )
+    print("===> Working done! Transformed raw depths are being generated.")
