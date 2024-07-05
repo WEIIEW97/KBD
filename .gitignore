@@ -12,6 +12,8 @@ dist/
 
 .vscode
 .cache
+.idea
+
 
 cmake-build-release
 cmake-build-debug
