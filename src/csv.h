@@ -16,13 +16,13 @@
 
 #ifndef KBD_CSV_H
 #define KBD_CSV_H
+
 #include "shared.h"
-#include <arrow/api.h>
-#include <arrow/csv/api.h>
-#include <arrow/io/api.h>
-#include <arrow/result.h>
-#include <arrow/status.h>
-#include <arrow/util/logging.h>
+#include <DataFrame/DataFrame.h>
+
+namespace kbd {
+
+}
 
 
 #endif // KBD_CSV_H
