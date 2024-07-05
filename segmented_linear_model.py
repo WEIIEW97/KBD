@@ -56,7 +56,6 @@ def retrive_file_names(path: str) -> list[str]:
 def copy_files_in_directory(src: str, dst: str) -> None:
     os.makedirs(dst, exist_ok=True)
     files = retrive_file_names(src)
-
     for file in files:
         source = os.path.join(src, file)
         destination = os.path.join(dst, file)

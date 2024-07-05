@@ -1,1 +1,1 @@
-This project helps transforming depth data to an optimized one from our camera with `KBD` related models.
+This project helps to transform depth data to an optimized one from our camera with `KBD` related models.
