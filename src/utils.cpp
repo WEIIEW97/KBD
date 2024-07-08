@@ -21,9 +21,9 @@ namespace kbd {
     std::vector<std::string> folder_names;
 
     // Iterate through the directory entries in the given path
-    for (const auto& entry : std::filesystem::directory_iterator(path)) {
+    for (const auto& entry : fs::directory_iterator(path)) {
       // Check if the entry is a directory
-      if (std::filesystem::is_directory(entry.status())) {
+      if (fs::is_directory(entry.status())) {
         folder_names.push_back(entry.path().filename().string());
       }
     }
@@ -31,10 +31,10 @@ namespace kbd {
     return folder_names;
   }
 
-  std::vector<std::string> retreive_file_names(const std::string& path) {
+  std::vector<std::string> retrieve_file_names(const std::string& path) {
     std::vector<std::string> file_names;
-    for (const auto& entry : std::filesystem::directory_iterator(path)) {
-      if (std::filesystem::is_regular_file(entry.status())) {
+    for (const auto& entry : fs::directory_iterator(path)) {
+      if (fs::is_regular_file(entry.status())) {
         file_names.push_back((entry.path().filename().string()));
       }
     }
@@ -44,18 +44,18 @@ namespace kbd {
 
   void copy_files_in_directory(const std::string& src, const std::string& dst) {
     // Create the destination directory if it does not exist
-    std::filesystem::create_directories(dst);
+    fs::create_directories(dst);
 
     // Retrieve the list of files in the source directory
-    std::vector<std::string> files = retrieve_file_names(src);
+    auto files = retrieve_file_names(src);
 
     // Copy each file from src to dst
     for (const auto& file : files) {
-      std::filesystem::path source = std::filesystem::path(src) / file;
-      std::filesystem::path destination = std::filesystem::path(dst) / file;
-      std::filesystem::copy_file(
+      fs::path source = fs::path(src) / file;
+      fs::path destination = fs::path(dst) / file;
+      fs::copy_file(
           source, destination,
-          std::filesystem::copy_options::overwrite_existing);
+          fs::copy_options::overwrite_existing);
     }
   }
 
