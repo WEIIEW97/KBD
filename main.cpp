@@ -1,5 +1,6 @@
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
+#include <arrow/pretty_print.h>
 #include <iostream>
 #include <memory>
 
@@ -7,7 +8,8 @@ int main() {
   arrow::io::IOContext io_context = arrow::io::default_io_context();
   // Memory pool used by Arrow to efficiently allocate and deallocate memory
   arrow::MemoryPool* pool = arrow::default_memory_pool();
-  std::string file_path = "/home/william/codes/KBD/depthquality_2024-07-04.csv";
+  std::string file_path =
+      "/Users/williamwei/Codes/KBD/depthquality_2024-07-04.csv";
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> file_result =
       arrow::io::ReadableFile::Open(file_path, pool);
   if (!file_result.ok()) {
@@ -41,6 +43,18 @@ int main() {
   for (const auto& field : schema->fields()) {
     std::cout << field->name() << std::endl;
   }
+
+  std::string column_name = "fit plane dist/mm";
+  std::shared_ptr<arrow::ChunkedArray> column =
+      table->GetColumnByName(column_name);
+  if (column == nullptr) {
+    std::cerr << "Column not found: " << column_name << std::endl;
+    return -1;
+  }
+
+  // Optionally print the column data
+  std::cout << "Data in column '" << column_name << "':" << std::endl;
+  auto status = arrow::PrettyPrint(*column, {}, &std::cout);
 
   return 0;
 }
