@@ -10,6 +10,7 @@ from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
+from numba import jit
 
 ##################### predefined constants #####################
 DISP_VAL_MAX_UINT16 = 32767
@@ -99,7 +100,11 @@ def read_csv(path: str) -> pd.DataFrame:
 
 
 def read_table(path: str, pair_dict: dict) -> pd.DataFrame:
-    df = read_csv(path)
+    pos = path.find("csv")
+    if pos != -1:
+        df = read_csv(path)
+    else:
+        df = read_excel(path)
     df_sel = df[list(pair_dict.keys())]
     needed_df = df_sel.rename(columns=pair_dict)
     return needed_df
@@ -292,8 +297,8 @@ class JointLinearSmoothingOptimizer:
         self.kbd_y = self.gt[mask]
 
         kbd_base_optimizer = NelderMeadOptimizer(
-            self.gt,
-            self.est,
+            self.kbd_y,
+            self.kbd_x,
             self.focal,
             self.baseline,
             self.local_restriction_weights,
@@ -367,8 +372,8 @@ def generate_parameters_linear(
         disjoint_depth_range,
         compensate_dist,
         scaling_factor,
-        apply_weights=True,
-        apply_l2=True,
+        apply_weights=False,
+        apply_l2=False,
     )
 
     linear_model1, res, linear_model2 = jlm.run()
@@ -434,8 +439,10 @@ def apply_transformation_linear(
         for p in paths:
             full_path = os.path.join(path, folder, SUBFIX, p)
             raw = load_raw(full_path, H, W)
-            depth = modify_linear_vectorize(
+            depth = modify_linear(
                 raw,
+                H,
+                W,
                 focal,
                 baseline,
                 params_matrix,
@@ -502,15 +509,56 @@ def modify_linear_vectorize(
     return out
 
 
+@jit(nopython=True)
+def modify_linear(
+    m: np.ndarray,
+    h: int,
+    w: int,
+    focal: float,
+    baseline: float,
+    param_matrix: np.ndarray,
+    disjoint_depth_range: tuple | list,
+    compensate_dist: float,
+    scaling_factor: float,
+) -> np.ndarray:
+    fb = focal * baseline
+    out = np.zeros_like(m)
+
+    for i in range(h):
+        for j in range(w):
+            depth = m[i, j]
+            if depth >= 0 and depth < 0 + EPSILON:
+                continue
+            elif depth < disjoint_depth_range[0] - compensate_dist:
+                out[i, j] = depth
+            elif depth < disjoint_depth_range[0]:
+                disp0 = fb / depth
+                alpha_, beta_ = param_matrix[1, 3:5]
+                disp1 = alpha_ * disp0 + beta_
+                out[i, j] = fb / disp1
+            elif depth < disjoint_depth_range[1]:
+                disp0 = fb / depth
+                k_, delta_, b_ = param_matrix[2, :3]
+                out[i, j] = k_ * fb / (disp0 + delta_) + b_
+            elif depth < disjoint_depth_range[1] + compensate_dist * scaling_factor:
+                disp0 = fb / depth
+                alpha_, beta_ = param_matrix[3, 3:5]
+                disp1 = alpha_ * disp0 + beta_
+                out[i, j] = fb / disp1
+            else:
+                out[i, j] = depth
+
+    return out
+
 if __name__ == "__main__":
     cwd = os.getcwd()
 
     # please make adjustments to them accordingly
     compensate_dist = 400
     scaling_factor = 10
-    disjoint_depth_range = [601, 3000]
-    camera_type = "N09ASH24DH0015"
-    table_name = "depthquality-2024-05-20.xlsx"
+    disjoint_depth_range = [600, 3000]
+    camera_type = "N09ASH24DH0043"
+    table_name = "depthquality_2024-07-08.xlsx"
 
     print(f"processing {camera_type} now with {table_name} ...")
     root_dir = f"{cwd}/data/{camera_type}/image_data"

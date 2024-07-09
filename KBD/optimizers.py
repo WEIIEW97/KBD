@@ -149,8 +149,8 @@ class JointLinearSmoothingOptimizer:
         self.kbd_y = self.gt[mask]
 
         kbd_base_optimizer = NelderMeadOptimizer(
-            self.gt,
-            self.est,
+            self.kbd_y,
+            self.kbd_x,
             self.focal,
             self.baseline,
             self.local_restriction_weights,
@@ -251,7 +251,7 @@ class TrustRegionReflectiveOptimizer:
         k, delta, b = params
         pred = model(self.est, self.focal, self.baseline, k, delta, b)
         residuals = pred - self.gt
-        mse = np.mean(residuals**2)
+        # mse = np.mean(residuals**2)
         local_restric = np.abs(
             (
                 pred[self.gt < self.restriction_loc]
@@ -259,9 +259,10 @@ class TrustRegionReflectiveOptimizer:
             )
             / self.gt[self.gt < self.restriction_loc]
         )
+        print(local_restric)
         return np.concatenate(
             (
-                mse,
+                residuals,
                 self.local_restriction_weights
                 * np.maximum(0, local_restric - self.target_rate),
             )

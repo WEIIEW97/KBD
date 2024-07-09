@@ -1,5 +1,7 @@
 from KBD.apis import (
     generate_parameters_linear,
+    generate_parameters,
+    generate_parameters_trf,
     apply_transformation_linear_parallel,
     apply_transformation_linear_vectorize_parallel,
 )
@@ -10,6 +12,7 @@ from KBD.constants import (
     OUT_FIG_GLOBAL_PREDICTION_FILE_NAME,
     OUT_FIG_LINEAR_PREDICTION_FILE_NAME,
 )
+from KBD.plotters import plot_linear2
 from KBD.eval import eval, check_monotonicity
 import os
 import numpy as np
@@ -24,6 +27,7 @@ if __name__ == "__main__":
 
     camera_types = [
         "N09ASH24DH0015",
+        "N09ASH24DH0043",
         "N09ASH24DH0054",
         "N09ASH24DH0055",
         "N09ASH24DH0056",
@@ -31,17 +35,18 @@ if __name__ == "__main__":
     ]
     table_names = [
         "depthquality-2024-05-20.xlsx",
+        "depthquality_2024-07-08.xlsx",
         "depthquality-2024-05-22.xlsx",
         "depthquality-2024-05-22_55.xlsx",
         "depthquality-2024-05-22_56.xlsx",
         "depthquality-2024-05-22.xlsx",
     ]
-    disjoint_depth_ranges = [[601, 3000], [600, 2999], [1008, 2908], [600, 3000], [600, 2999]]
+    disjoint_depth_ranges = [[601, 3000], [600, 3000], [600, 2999], [1008, 2908], [600, 3000], [600, 2999]]
     for type, table_name, range_ in zip(
         camera_types, table_names, disjoint_depth_ranges
     ):
         print(f"processing {type} now with {table_name} ...")
-        if type != "N09ASH24DH0015":
+        if type != "N09ASH24DH0043":
             continue
         root_dir = f"{cwd}/data/{type}/image_data"
         copy_dir = f"{cwd}/data/{type}/image_data_transformed_linear"
@@ -58,7 +63,13 @@ if __name__ == "__main__":
             disjoint_depth_range=range_,
             compensate_dist=compensate_dist,
             scaling_factor=scaling_factor,
+            plot=True
         )
+        k, delta, b, _, _ = generate_parameters(root_dir, tablepath, save_dir, plot=True)
+        print(f"k, delta, b = {k}, {delta}, {b}")
+        k, delta, b, _, _ = generate_parameters_trf(root_dir, tablepath, save_dir, plot=True)
+        print(f"k, delta, b = {k}, {delta}, {b}")
+        
         range_raw = range_
         extra_range = [range_raw[0]-compensate_dist, range_raw[0], range_raw[1], range_raw[1]+compensate_dist*scaling_factor]
         disp_nodes_fp32 = focal * baseline / (np.array(extra_range))

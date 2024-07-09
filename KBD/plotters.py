@@ -655,7 +655,7 @@ def plot_all_in_one(gt, est, focal, baseline, depth_ranges, res):
     # plt.show()
 
 
-def plot_linear(
+def plot_linear2(
     gt,
     est,
     error,

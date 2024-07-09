@@ -38,7 +38,7 @@ from .core import (
     modify_linear_vectorize,
     modify_linear_vectorize2,
 )
-from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear
+from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear2
 from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
 from .optimizers import (
     TrustRegionReflectiveOptimizer,
@@ -128,7 +128,7 @@ def generate_parameters_trf(
     trf = TrustRegionReflectiveOptimizer(
         actual_depth, avg_50x50_anchor_disp, focal, baseline
     )
-    k_, delta_, b_, residuals_ = trf.run()
+    k_, delta_, b_ = trf.run()
 
     common_prefix = "TRF_"
     param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
@@ -247,8 +247,8 @@ def generate_parameters_linear(
         disjoint_depth_range,
         compensate_dist,
         scaling_factor,
-        apply_weights=True,
-        apply_l2=True,
+        apply_weights=False,
+        apply_l2=False,
     )
 
     linear_model1, res, linear_model2 = jlm.run()
@@ -258,7 +258,7 @@ def generate_parameters_linear(
     b_ = float(np.float64(res[2]))
 
     if plot:
-        plot_linear(
+        plot_linear2(
             actual_depth,
             avg_50x50_anchor_disp,
             error,
