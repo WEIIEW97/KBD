@@ -3,13 +3,17 @@
 #include <arrow/pretty_print.h>
 #include <iostream>
 #include <memory>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 int main() {
   arrow::io::IOContext io_context = arrow::io::default_io_context();
   // Memory pool used by Arrow to efficiently allocate and deallocate memory
   arrow::MemoryPool* pool = arrow::default_memory_pool();
-  std::string file_path =
-      "/Users/williamwei/Codes/KBD/depthquality_2024-07-04.csv";
+  auto cwd = fs::current_path();
+  std::cout << cwd.parent_path().string() << std::endl;
+  std::string file_path = cwd.parent_path().string() + "/depthquality_2024-07-04.csv";
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> file_result =
       arrow::io::ReadableFile::Open(file_path, pool);
   if (!file_result.ok()) {
