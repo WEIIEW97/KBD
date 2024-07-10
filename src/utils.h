@@ -19,6 +19,7 @@
 
 #include "shared.h"
 #include "array.h"
+#include "config.h"
 
 #include <nlohmann/json.hpp>
 
@@ -71,8 +72,7 @@ namespace kbd {
                            const Eigen::MatrixXd& arr2d);
   std::map<std::string, double> calculate_mean_value(
       const std::string& root_path, const std::vector<std::string>& folders,
-      const std::string& subfix, const std::vector<int>& anchor_point, int h,
-      int w, bool is_median);
+      const Config& default_configs, bool is_median);
 } // namespace kbd
 
 #endif // KBD_UTILS_H

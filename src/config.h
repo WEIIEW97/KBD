@@ -30,12 +30,13 @@ namespace kbd {
     int W = 640;
     float EPSILON = 1e-6;
 
-    std::vector<int> anchor_point = {H/2, W/2};
+    std::vector<int> ANCHOR_POINT = {H/2, W/2};
 
     std::string AVG_DIST_NAME = "avg_depth_50x50_anchor";
     std::string AVG_DISP_NAME = "avg_disp_50x50_anchor";
     std::string MEDIAN_DIST_NAME = "median_depth_50x50_anchor";
     std::string MEDIAN_DISP_NAME = "median_disp_50x50_anchor";
+    std::string ABS_ERROR_RATE_NAME = "absolute_error_rate";
     std::string GT_DIST_NAME = "actual_depth";
     std::string GT_ERROR_NAME = "absolute_error";
     std::string FOCAL_NAME = "focal";

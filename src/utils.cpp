@@ -80,9 +80,13 @@ namespace kbd {
 
   std::map<std::string, double> calculate_mean_value(
       const std::string& root_path, const std::vector<std::string>& folders,
-      const std::string& subfix, const std::vector<int>& anchor_point, int h,
-      int w, bool is_median) {
+      const Config& default_configs, bool is_median) {
     std::map<std::string, double> dist_dict;
+    auto subfix = default_configs.SUBFIX;
+    auto anchor_point = default_configs.ANCHOR_POINT;
+    auto h = default_configs.H;
+    auto w = default_configs.W;
+    
     for (const auto& folder : folders) {
       std::string distance = folder.substr(0, folder.find("_"));
       fs::path raw_path = fs::path(root_path) / folder / subfix;
