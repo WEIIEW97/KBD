@@ -116,6 +116,7 @@ class JointLinearSmoothingOptimizer:
         local_restriction_weights=1000,
         restriction_loc=1000,
         target_rate=0.02,
+        apply_global=False,
         apply_weights=False,
         apply_l2=False,
         reg_lambda=0.001,
@@ -130,6 +131,7 @@ class JointLinearSmoothingOptimizer:
         self.disjoint_depth_range = disjoint_depth_range
         self.compensate_dist = compensate_dist
         self.scaling_factor = scaling_factor
+        self.apply_global = apply_global
         self.apply_weights = apply_weights
         self.apply_l2 = apply_l2
         self.reg_lambda = reg_lambda
@@ -145,8 +147,12 @@ class JointLinearSmoothingOptimizer:
             (self.gt > self.disjoint_depth_range[0])
             & (self.gt < self.disjoint_depth_range[1])
         )
-        self.kbd_x = self.est[mask]
-        self.kbd_y = self.gt[mask]
+        if not self.apply_global:
+            self.kbd_x = self.est[mask]
+            self.kbd_y = self.gt[mask]
+        else:
+            self.kbd_x = self.est
+            self.kbd_y = self.gt
 
         kbd_base_optimizer = NelderMeadOptimizer(
             self.kbd_y,
@@ -167,7 +173,7 @@ class JointLinearSmoothingOptimizer:
     def calculate_eta(self):
         lb = self.disjoint_depth_range[0]
         # lb shoud be restrictly greater than 1.000001
-        eta = self.fb/[lb-1] - self.fb/lb
+        eta = self.fb / [lb - 1] - self.fb / lb
         return eta
 
     def run(self):

@@ -264,6 +264,7 @@ class JointLinearSmoothingOptimizer:
         local_restriction_weights=1000,
         restriction_loc=1000,
         target_rate=0.02,
+        apply_global=False,
         apply_weights=False,
         apply_l2=False,
         reg_lambda=0.001,
@@ -278,6 +279,7 @@ class JointLinearSmoothingOptimizer:
         self.disjoint_depth_range = disjoint_depth_range
         self.compensate_dist = compensate_dist
         self.scaling_factor = scaling_factor
+        self.apply_global = apply_global
         self.apply_weights = apply_weights
         self.apply_l2 = apply_l2
         self.reg_lambda = reg_lambda
@@ -293,8 +295,12 @@ class JointLinearSmoothingOptimizer:
             (self.gt > self.disjoint_depth_range[0])
             & (self.gt < self.disjoint_depth_range[1])
         )
-        self.kbd_x = self.est[mask]
-        self.kbd_y = self.gt[mask]
+        if not self.apply_global:
+            self.kbd_x = self.est[mask]
+            self.kbd_y = self.gt[mask]
+        else:
+            self.kbd_x = self.est
+            self.kbd_y = self.gt
 
         kbd_base_optimizer = NelderMeadOptimizer(
             self.kbd_y,
@@ -358,6 +364,9 @@ def generate_parameters_linear(
     disjoint_depth_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
+    apply_global=False,
+    apply_weights=False,
+    apply_l2=False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
@@ -372,8 +381,9 @@ def generate_parameters_linear(
         disjoint_depth_range,
         compensate_dist,
         scaling_factor,
-        apply_weights=False,
-        apply_l2=False,
+        apply_global=apply_global,
+        apply_weights=apply_weights,
+        apply_l2=apply_l2,
     )
 
     linear_model1, res, linear_model2 = jlm.run()
@@ -550,6 +560,7 @@ def modify_linear(
 
     return out
 
+
 if __name__ == "__main__":
     cwd = os.getcwd()
 
@@ -559,13 +570,16 @@ if __name__ == "__main__":
     disjoint_depth_range = [600, 3000]
     camera_type = "N09ASH24DH0043"
     table_name = "depthquality_2024-07-08.xlsx"
+    apply_global = False
+    global_judge = "global" if apply_global else "local"
+
 
     print(f"processing {camera_type} now with {table_name} ...")
     root_dir = f"{cwd}/data/{camera_type}/image_data"
-    copy_dir = f"{cwd}/data/{camera_type}/image_data_transformed_linear"
+    copy_dir = f"{cwd}/data/{camera_type}/image_data_transformed_linear_{global_judge}"
     save_dir = f"{cwd}/data/{camera_type}"
     tablepath = f"{cwd}/data/{camera_type}/{table_name}"
-    save_params_path = save_dir + "/segmented_linear_KBD_params.json"
+    save_params_path = save_dir + f"/segmented_linear_KBD_params_{global_judge}.json"
 
     eval_res, acceptance_rate = eval(root_dir, tablepath)
     if acceptance_rate < EVAL_WARNING_RATE:
@@ -583,6 +597,7 @@ if __name__ == "__main__":
         disjoint_depth_range=disjoint_depth_range,
         compensate_dist=compensate_dist,
         scaling_factor=scaling_factor,
+        apply_global=apply_global,
     )
     range_raw = disjoint_depth_range
     extra_range = [

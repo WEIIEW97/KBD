@@ -14,22 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef KBD_CSV_H
-#define KBD_CSV_H
+#ifndef KBD_TABLE_H
+#define KBD_TABLE_H
 
-#include "shared.h"
+#include "config.h"
 
 #include <memory>
+#include <map>
+#include <arrow/api.h>
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
 #include <arrow/pretty_print.h>
+#include <arrow/util/logging.h>
+
 namespace kbd {
-  class ArrowCSVReader {
+  class ArrowTableReader {
   public:
-    ArrowCSVReader() { initialize(); }
-    ~ArrowCSVReader() = default;
+    ArrowTableReader() { initialize(); }
+    ~ArrowTableReader() = default;
 
     std::shared_ptr<arrow::Table> df_;
+    double baseline_ = 0.f;
+    double focal_ = 0.f;
 
   private:
     arrow::io::IOContext io_context_;
@@ -41,10 +47,16 @@ namespace kbd {
   public:
     void initialize();
     std::shared_ptr<arrow::Table> read_csv(const std::string& csv_path);
-    std::shared_ptr<arrow::Schema> get_column_names(bool verbose=true);
-    std::shared_ptr<arrow::ChunkedArray> get_data_by_column_name(const std::string& column_name);
+    std::shared_ptr<arrow::Schema> get_column_names(bool verbose = true);
+    std::shared_ptr<arrow::ChunkedArray>
+    get_data_by_column_name(const std::string& column_name);
     arrow::Status arrow_pretty_print(const arrow::ChunkedArray& data);
+    std::shared_ptr<arrow::Table>
+    trim_table(const std::map<std::string, std::string>& pair_dict);
+    arrow::Status map_table(std::shared_ptr<arrow::Table> table,
+                            const Config& kbd_config,
+                            const std::map<std::string, double>& dist_dict);
   };
 } // namespace kbd
 
-#endif // KBD_CSV_H
+#endif // KBD_TABLE_H

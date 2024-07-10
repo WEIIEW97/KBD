@@ -18,6 +18,7 @@
 #define KBD_SHARED_H
 
 #include <iostream>
+#include <fmt/core.h>
 #include <fstream>
 #include <cmath>
 #include <algorithm>

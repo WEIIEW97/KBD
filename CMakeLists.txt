@@ -14,6 +14,7 @@ file(GLOB_RECURSE headers ${CMAKE_CURRENT_LIST_DIR}/src/*.h)
 find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(Arrow REQUIRED)
+find_package(fmt REQUIRED)
 
 add_executable(${PROJECT_NAME} 
         main.cpp
@@ -24,6 +25,7 @@ target_include_directories(
         ${PROJECT_NAME}
         PRIVATE
         ${EIGEN3_INCLUDE_DIR}
+        ${fmt_INCLUDE_DIRS}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${ARROW_INCLUDE_DIRS}
         # ${DATAFRAME_INCLUDE_DIR}
@@ -34,5 +36,6 @@ target_link_libraries(
         PRIVATE
         nlohmann_json::nlohmann_json
         Arrow::arrow_shared
+        fmt::fmt
         # ${DATAFRAME_LIB_DIR}/libDataFrame.a
 )

@@ -40,7 +40,7 @@ namespace kbd {
     std::string GT_ERROR_NAME = "absolute_error";
     std::string FOCAL_NAME = "focal";
     std::string BASELINE_NAME = "baseline";
-    std::map<std::string, std::string> MAPPED_PAI_DICT = {
+    std::map<std::string, std::string> MAPPED_PAIR_DICT = {
         {"距离(mm)", "actual_depth"},
         {"相机焦距", "focal"},
         {"相机基线", "baseline"},
