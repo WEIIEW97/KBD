@@ -1,11 +1,10 @@
 import numpy as np
-from scipy.optimize import minimize
-from sklearn.linear_model import LinearRegression
-from scipy.optimize import differential_evolution
 from bayes_opt import BayesianOptimization
+from scipy.optimize import differential_evolution, minimize
+from sklearn.linear_model import LinearRegression
 
 from .constants import EPSILON
-from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
+from .kernels import gaussian_kernel, laplacian_kernel, polynomial_kernel_n2
 
 
 def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
@@ -362,7 +361,7 @@ def linear_KBD_piecewise_func(
         return FB / (coef3 * disp + intercept3)
     else:
         return x
-    
+
 
 def global_KBD_func(x, focal, baseline, k, delta, b):
     FB = focal * baseline

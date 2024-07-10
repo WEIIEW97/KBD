@@ -8,7 +8,7 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 
-ANCHOR_POINT = [H//2, W//2]
+ANCHOR_POINT = [H // 2, W // 2]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
@@ -39,5 +39,5 @@ MAPPED_PAIR_DICT_DEBUG = {
     "相机焦距": "focal",
     "相机基线": "baseline",
     "绝对误差/mm": "absolute_error",
-    "fit plane dist/mm": "fit_plane"
+    "fit plane dist/mm": "fit_plane",
 }

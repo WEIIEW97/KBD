@@ -1,10 +1,11 @@
 import os
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 
 from .constants import (
-    OUT_FIG_ERROR_RATE_FILE_NAME,
     OUT_FIG_COMP_FILE_NAME,
+    OUT_FIG_ERROR_RATE_FILE_NAME,
     OUT_FIG_RESIDUAL_FILE_NAME,
 )
 

@@ -1,11 +1,12 @@
-from KBD.utils import load_raw, json_reader, json_to_numpy
-from KBD.core import modify_linear_vectorize2
-from KBD.constants import UINT16_MIN, UINT16_MAX
-from KBD.models import linear_KBD_piecewise_func
-import numpy as np
 import os
 import shutil
+
 import matplotlib.pyplot as plt
+import numpy as np
+from KBD.constants import UINT16_MAX, UINT16_MIN
+from KBD.core import modify_linear_vectorize2
+from KBD.models import linear_KBD_piecewise_func
+from KBD.utils import json_reader, json_to_numpy, load_raw
 
 
 def create_lut(

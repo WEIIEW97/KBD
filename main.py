@@ -1,21 +1,27 @@
+import os
+
+import numpy as np
 from KBD.apis import (
-    generate_parameters_linear,
-    generate_parameters,
-    generate_parameters_trf,
     apply_transformation_linear_parallel,
     apply_transformation_linear_vectorize_parallel,
+    generate_parameters,
+    generate_parameters_linear,
+    generate_parameters_trf,
 )
-from KBD.helpers import parallel_copy, sampling_strategy_criterion
-from KBD.utils import generate_linear_KBD_data, generate_global_KBD_data, save_arrays_to_txt, save_arrays_to_json
 from KBD.constants import (
     CAMERA_TYPE,
     OUT_FIG_GLOBAL_PREDICTION_FILE_NAME,
     OUT_FIG_LINEAR_PREDICTION_FILE_NAME,
 )
+from KBD.eval import check_monotonicity, eval
+from KBD.helpers import parallel_copy, sampling_strategy_criterion
 from KBD.plotters import plot_linear2
-from KBD.eval import eval, check_monotonicity
-import os
-import numpy as np
+from KBD.utils import (
+    generate_global_KBD_data,
+    generate_linear_KBD_data,
+    save_arrays_to_json,
+    save_arrays_to_txt,
+)
 
 DISP_VAL_MAX_UINT16 = 32767
 
@@ -41,7 +47,14 @@ if __name__ == "__main__":
         "depthquality-2024-05-22_56.xlsx",
         "depthquality-2024-05-22.xlsx",
     ]
-    disjoint_depth_ranges = [[601, 3000], [600, 3000], [600, 2999], [1008, 2908], [600, 3000], [600, 2999]]
+    disjoint_depth_ranges = [
+        [601, 3000],
+        [600, 3000],
+        [600, 2999],
+        [1008, 2908],
+        [600, 3000],
+        [600, 2999],
+    ]
     for type, table_name, range_ in zip(
         camera_types, table_names, disjoint_depth_ranges
     ):
@@ -63,15 +76,24 @@ if __name__ == "__main__":
             disjoint_depth_range=range_,
             compensate_dist=compensate_dist,
             scaling_factor=scaling_factor,
-            plot=True
+            plot=True,
         )
-        k, delta, b, _, _ = generate_parameters(root_dir, tablepath, save_dir, plot=True)
+        k, delta, b, _, _ = generate_parameters(
+            root_dir, tablepath, save_dir, plot=True
+        )
         print(f"k, delta, b = {k}, {delta}, {b}")
-        k, delta, b, _, _ = generate_parameters_trf(root_dir, tablepath, save_dir, plot=True)
+        k, delta, b, _, _ = generate_parameters_trf(
+            root_dir, tablepath, save_dir, plot=True
+        )
         print(f"k, delta, b = {k}, {delta}, {b}")
-        
+
         range_raw = range_
-        extra_range = [range_raw[0]-compensate_dist, range_raw[0], range_raw[1], range_raw[1]+compensate_dist*scaling_factor]
+        extra_range = [
+            range_raw[0] - compensate_dist,
+            range_raw[0],
+            range_raw[1],
+            range_raw[1] + compensate_dist * scaling_factor,
+        ]
         disp_nodes_fp32 = focal * baseline / (np.array(extra_range))
         disp_nodes_uint16 = (disp_nodes_fp32 * 64).astype(np.uint16)
         disp_nodes_uint16 = np.sort(disp_nodes_uint16)

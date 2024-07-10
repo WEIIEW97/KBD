@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 import os
 import shutil
-import yaml
-from scipy.optimize import minimize
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.linear_model import LinearRegression
-from typing import Union, Callable, Any
-from tqdm import tqdm
-from numba import jit
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import OrderedDict
+from concurrent.futures import as_completed, ThreadPoolExecutor
+from typing import Any, Callable, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+import pandas as pd
+import yaml
+from numba import jit
+from scipy.optimize import minimize
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
 
 
 def ordered_dict_representer(dumper, data):
@@ -32,7 +34,7 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 
-ANCHOR_POINT = [H//2, W//2]
+ANCHOR_POINT = [H // 2, W // 2]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"

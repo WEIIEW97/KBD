@@ -1,36 +1,26 @@
-import numpy as np
 import os
-from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import OrderedDict
-from sklearn.linear_model import LinearRegression
+from concurrent.futures import as_completed, ThreadPoolExecutor
 
-from .helpers import (
-    preprocessing,
-    retrive_file_names,
-    retrive_folder_names,
-)
-from .utils import load_raw, depth2disp, get_linear_model_params, json_dumper
-from .models import (
-    model_kernel_fit,
-    model_kbd_v3,
-    model_kbd_bayes,
-)
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from tqdm import tqdm
+
 from .constants import (
-    UINT16_MIN,
-    UINT16_MAX,
-    H,
-    W,
-    SUBFIX,
+    AVG_DISP_NAME,
     EPSILON,
     GT_DIST_NAME,
-    AVG_DISP_NAME,
     GT_ERROR_NAME,
-    OUT_PARAMS_FILE_NAME,
-    OUT_FIG_RESIDUAL_FILE_NAME,
+    H,
+    LINEAR_OUT_PARAMS_FILE_NAME,
     OUT_FIG_COMP_FILE_NAME,
     OUT_FIG_ERROR_RATE_FILE_NAME,
-    LINEAR_OUT_PARAMS_FILE_NAME,
+    OUT_FIG_RESIDUAL_FILE_NAME,
+    OUT_PARAMS_FILE_NAME,
+    SUBFIX,
+    UINT16_MAX,
+    UINT16_MIN,
+    W,
 )
 from .core import (
     modify,
@@ -38,13 +28,17 @@ from .core import (
     modify_linear_vectorize,
     modify_linear_vectorize2,
 )
-from .plotters import plot_error_rate, plot_comparison, plot_residuals, plot_linear2
-from .kernels import gaussian_kernel, polynomial_kernel_n2, laplacian_kernel
+
+from .helpers import preprocessing, retrive_file_names, retrive_folder_names
+from .kernels import gaussian_kernel, laplacian_kernel, polynomial_kernel_n2
+from .models import model_kbd_bayes, model_kbd_v3, model_kernel_fit
 from .optimizers import (
-    TrustRegionReflectiveOptimizer,
     JointLinearSmoothingOptimizer,
     NelderMeadOptimizer,
+    TrustRegionReflectiveOptimizer,
 )
+from .plotters import plot_comparison, plot_error_rate, plot_linear2, plot_residuals
+from .utils import depth2disp, get_linear_model_params, json_dumper, load_raw
 
 
 def generate_parameters(
@@ -270,7 +264,7 @@ def generate_parameters_linear(
             scaling_factor=scaling_factor,
             save_path=save_path,
         )
-    
+
     params_matrix = np.zeros((5, 5), dtype=np.float32)
     params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
     params_matrix[1, :] = np.array(

@@ -1,6 +1,7 @@
-import yaml
 import json
 from collections import OrderedDict
+
+import yaml
 
 
 def ordered_dict_representer(dumper, data):

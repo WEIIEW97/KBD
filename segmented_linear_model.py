@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import json
+
 import os
+import shutil
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 import pandas as pd
-import json
-import shutil
+from numba import jit
 
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor
-from numba import jit
 
 ##################### predefined constants #####################
 DISP_VAL_MAX_UINT16 = 32767
@@ -572,7 +574,6 @@ if __name__ == "__main__":
     table_name = "depthquality_2024-07-08.xlsx"
     apply_global = False
     global_judge = "global" if apply_global else "local"
-
 
     print(f"processing {camera_type} now with {table_name} ...")
     root_dir = f"{cwd}/data/{camera_type}/image_data"

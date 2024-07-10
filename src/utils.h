@@ -28,12 +28,12 @@ namespace kbd {
   using json = nlohmann::json;
 
   template <typename T>
-  Array<T> load_raw(const std::string& path, int h, int w) {
+  ndArray<T> load_raw(const std::string& path, int h, int w) {
     // Open the file in binary mode
     std::ifstream file(path, std::ios::binary);
     if (!file) {
       std::cerr << "Cannot open file: " << path << std::endl;
-      return Array<T>();
+      return ndArray<T>();
     }
 
     // Calculate the total number of elements
@@ -47,14 +47,14 @@ namespace kbd {
               total_elements * sizeof(T));
     if (!file) {
       std::cerr << "Error reading file: " << path << std::endl;
-      return Array<T>();
+      return ndArray<T>();
     }
 
     // Close the file
     file.close();
 
     // Map the buffer to an Eigen matrix
-    Array<T> matrix(h, w);
+    ndArray<T> matrix(h, w);
     for (int i = 0; i < h; ++i) {
       for (int j = 0; j < w; ++j) {
         matrix(i, j) = buffer[i * w + j];

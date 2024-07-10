@@ -15,6 +15,7 @@ find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(Arrow REQUIRED)
 find_package(fmt REQUIRED)
+find_package(Ceres REQUIRED)
 
 add_executable(${PROJECT_NAME} 
         main.cpp
@@ -28,6 +29,7 @@ target_include_directories(
         ${fmt_INCLUDE_DIRS}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${ARROW_INCLUDE_DIRS}
+        ${CERES_INCLUDE_DIRS}
         # ${DATAFRAME_INCLUDE_DIR}
 )
 
@@ -37,5 +39,6 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         Arrow::arrow_shared
         fmt::fmt
+        ${CERES_LIBRARIES}
         # ${DATAFRAME_LIB_DIR}/libDataFrame.a
 )

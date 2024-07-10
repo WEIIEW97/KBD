@@ -1,12 +1,13 @@
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import os
-import matplotlib.pyplot as plt
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from KBD.models import linear_KBD_piecewise_func
+from .constants import AVG_DIST_NAME, GT_DIST_NAME, GT_ERROR_NAME, MAPPED_PAIR_DICT
 from .helpers import preprocessing
-from .constants import MAPPED_PAIR_DICT, AVG_DIST_NAME, GT_DIST_NAME, GT_ERROR_NAME
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
