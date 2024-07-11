@@ -25,7 +25,11 @@
 namespace kbd {
   // Template alias for Eigen Matrix
   template <typename T>
-  using ndArray = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+  using ndArray =
+      Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+
+  template <typename T>
+  using Array = Eigen::Array<T, Eigen::Dynamic, 1>;
 
   template <typename T>
   Eigen::Array<T, Eigen::Dynamic, 1> ArrowDoubleArrayToEigen(
@@ -42,15 +46,17 @@ namespace kbd {
   }
 
   template <typename T>
-  Eigen::Map<Eigen::Array<T, Eigen::Dynamic, 1>> ArrowDoubleArrayToEigenMap(
+  Eigen::Array<T, Eigen::Dynamic, 1> ArrowDoubleArrayToEigenMap(
       const std::shared_ptr<arrow::DoubleArray>& double_array) {
-
     // Get the raw data pointer
-    const T* data_ptr = double_array->raw_values();
+    const double* data_ptr = double_array->raw_values();
 
     // Create an Eigen::Map object to wrap the raw data pointer
-    Eigen::Map<Eigen::Array<T, Eigen::Dynamic, 1>> eigen_array(
+    Eigen::Map<const Eigen::Array<T, Eigen::Dynamic, 1>> eigen_map(
         data_ptr, double_array->length());
+
+    // Copy the data from the Eigen::Map to an Eigen::Array
+    Eigen::Array<T, Eigen::Dynamic, 1> eigen_array = eigen_map;
 
     return eigen_array;
   }

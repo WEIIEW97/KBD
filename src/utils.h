@@ -22,6 +22,7 @@
 #include "config.h"
 
 #include <nlohmann/json.hpp>
+#include <Eigen/Core>
 
 namespace kbd {
   namespace fs = std::filesystem;
@@ -36,32 +37,48 @@ namespace kbd {
       return ndArray<T>();
     }
 
-    // Calculate the total number of elements
-    int total_elements = h * w;
-
     // Create a buffer to hold the raw data
-    std::vector<T> buffer(total_elements);
+    std::vector<T> buffer(h * w);
 
     // Read the data from the file
-    file.read(reinterpret_cast<char*>(buffer.data()),
-              total_elements * sizeof(T));
+    file.read(reinterpret_cast<char*>(buffer.data()), h * w * sizeof(T));
     if (!file) {
       std::cerr << "Error reading file: " << path << std::endl;
       return ndArray<T>();
     }
-
-    // Close the file
     file.close();
 
-    // Map the buffer to an Eigen matrix
-    ndArray<T> matrix(h, w);
-    for (int i = 0; i < h; ++i) {
-      for (int j = 0; j < w; ++j) {
-        matrix(i, j) = buffer[i * w + j];
-      }
-    }
+    Eigen::Map<ndArray<uint16_t>> matrix(buffer.data(), h, w);
 
-    return matrix;
+    // Copy the data to an Eigen::Matrix (optional, to ensure the data is owned
+    // by the matrix)
+    ndArray<uint16_t> eigen_matrix = matrix;
+
+    return eigen_matrix;
+  }
+
+  template <typename T, int Rows, int Cols>
+  double calculate_median(const Eigen::Matrix<T, Rows, Cols>& matrix) {
+    std::vector<T> data(matrix.data(), matrix.data() + matrix.size());
+    std::nth_element(data.begin(), data.begin() + data.size() / 2, data.end());
+    return static_cast<double>(data[data.size() / 2]);
+  }
+
+  template <typename T, int Rows, int Cols>
+  double calculate_median(const Eigen::Block<T, Rows, Cols>& matrix) {
+    std::vector<T> data(matrix.data(), matrix.data() + matrix.size());
+    std::nth_element(data.begin(), data.begin() + data.size() / 2, data.end());
+    return static_cast<double>(data[data.size() / 2]);
+  }
+
+  template <typename T, int Rows, int Cols>
+  double calculate_mean(const Eigen::Matrix<T, Rows, Cols>& matrix) {
+    return matrix.template cast<double>().mean();
+  }
+
+  template <typename T, int Rows, int Cols>
+  double calculate_mean(const Eigen::Block<T, Rows, Cols>& matrix) {
+    return matrix.template cast<double>().mean();
   }
 
   std::vector<std::string> retrieve_folder_names(const std::string& path);
@@ -70,9 +87,11 @@ namespace kbd {
   void save_arrays_to_json(const std::string& path,
                            const std::vector<uint16_t>& arr1d,
                            const Eigen::MatrixXd& arr2d);
-  std::map<std::string, double> calculate_mean_value(
-      const std::string& root_path, const std::vector<std::string>& folders,
-      const Config& default_configs, bool is_median);
+  std::map<std::string, double>
+  calculate_mean_value(const std::string& file_path,
+                       const std::vector<std::string>& folders,
+                       const Config& default_configs);
+
 } // namespace kbd
 
 #endif // KBD_UTILS_H

@@ -96,19 +96,19 @@ namespace kbd {
   }
 
   arrow::Status
-  ArrowTableReader::map_table(std::shared_ptr<arrow::Table> table,
+  ArrowTableReader::map_table(std::shared_ptr<arrow::Table>& table,
                               const Config& kbd_config,
                               const std::map<std::string, double>& dist_dict) {
-    auto gt_dist_col = df_->GetColumnByName(kbd_config.GT_DIST_NAME);
-    auto focal_col = df_->GetColumnByName(kbd_config.FOCAL_NAME);
-    auto baseline_col = df_->GetColumnByName(kbd_config.BASELINE_NAME);
+    auto gt_dist_col = table->GetColumnByName(kbd_config.GT_DIST_NAME);
+    auto focal_col = table->GetColumnByName(kbd_config.FOCAL_NAME);
+    auto baseline_col = table->GetColumnByName(kbd_config.BASELINE_NAME);
 
     if (!gt_dist_col || !focal_col || !baseline_col) {
       throw std::runtime_error("Required columns are missing in the table");
     }
 
     auto gt_dist_array =
-        std::static_pointer_cast<arrow::StringArray>(gt_dist_col->chunk(0));
+        std::static_pointer_cast<arrow::Int64Array>(gt_dist_col->chunk(0)); // it must be int64 type
     auto focal_array =
         std::static_pointer_cast<arrow::DoubleArray>(focal_col->chunk(0));
     auto baseline_array =
@@ -122,8 +122,9 @@ namespace kbd {
     arrow::DoubleBuilder avg_dist_builder, avg_disp_builder;
     auto fb = focal_ * baseline_;
     for (auto i = 0; i < gt_dist_array->length(); ++i) {
-      auto gt_dist_value = gt_dist_array->GetString(i);
-      double avg_dist_value = dist_dict.at(gt_dist_value);
+      auto gt_dist_value = gt_dist_array->Value(i);
+      std::cout << std::to_string(gt_dist_value) << std::endl;
+      double avg_dist_value = dist_dict.at(std::to_string(gt_dist_value));
       ARROW_RETURN_NOT_OK(avg_dist_builder.Append(avg_dist_value));
 
       double avg_disp_value = fb / avg_dist_value;
@@ -143,10 +144,8 @@ namespace kbd {
     schema_fields.push_back(
         arrow::field(kbd_config.AVG_DISP_NAME, arrow::float64()));
 
-    columns.push_back(
-        std::make_shared<arrow::ChunkedArray>(avg_dist_array));
-    columns.push_back(
-        std::make_shared<arrow::ChunkedArray>(avg_disp_array));
+    columns.push_back(std::make_shared<arrow::ChunkedArray>(avg_dist_array));
+    columns.push_back(std::make_shared<arrow::ChunkedArray>(avg_disp_array));
 
     table = arrow::Table::Make(
         std::make_shared<arrow::Schema>(arrow::Schema(schema_fields)), columns);

@@ -4,10 +4,6 @@ project(kbd)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# set(DATAFRAME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/DataFrame/install)
-# set(DATAFRAME_INCLUDE_DIR ${DATAFRAME_DIR}/include)
-# set(DATAFRAME_LIB_DIR ${DATAFRAME_DIR}/lib)
-
 file(GLOB_RECURSE sources ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 file(GLOB_RECURSE headers ${CMAKE_CURRENT_LIST_DIR}/src/*.h)
 
@@ -18,7 +14,8 @@ find_package(fmt REQUIRED)
 find_package(Ceres REQUIRED)
 
 add_executable(${PROJECT_NAME} 
-        main.cpp
+        # main.cpp
+        test/test_ceres_solver.cpp
         ${sources}
 )
 
@@ -30,7 +27,6 @@ target_include_directories(
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${ARROW_INCLUDE_DIRS}
         ${CERES_INCLUDE_DIRS}
-        # ${DATAFRAME_INCLUDE_DIR}
 )
 
 target_link_libraries(
@@ -40,5 +36,4 @@ target_link_libraries(
         Arrow::arrow_shared
         fmt::fmt
         ${CERES_LIBRARIES}
-        # ${DATAFRAME_LIB_DIR}/libDataFrame.a
 )

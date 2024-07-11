@@ -570,8 +570,8 @@ if __name__ == "__main__":
     compensate_dist = 400
     scaling_factor = 10
     disjoint_depth_range = [600, 3000]
-    camera_type = "N09ASH24DH0043"
-    table_name = "depthquality_2024-07-08.xlsx"
+    camera_type = "N09ASH24DH0050"
+    table_name = "depthquality_2024-07-09.xlsx"
     apply_global = False
     global_judge = "global" if apply_global else "local"
 

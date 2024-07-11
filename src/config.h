@@ -30,7 +30,7 @@ namespace kbd {
     int W = 640;
     float EPSILON = 1e-6;
 
-    std::vector<int> ANCHOR_POINT = {H/2, W/2};
+    std::vector<int> ANCHOR_POINT = {H / 2, W / 2};
 
     std::string AVG_DIST_NAME = "avg_depth_50x50_anchor";
     std::string AVG_DISP_NAME = "avg_disp_50x50_anchor";
@@ -48,6 +48,6 @@ namespace kbd {
         {"绝对误差/mm", "absolute_error"},
     };
   };
-}
+} // namespace kbd
 
 #endif // KBD_CONFIG_H

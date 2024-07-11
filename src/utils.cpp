@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "utils.h"
+#include "eigen_io.h"
 #include <filesystem>
 
 namespace kbd {
@@ -53,9 +54,7 @@ namespace kbd {
     for (const auto& file : files) {
       fs::path source = fs::path(src) / file;
       fs::path destination = fs::path(dst) / file;
-      fs::copy_file(
-          source, destination,
-          fs::copy_options::overwrite_existing);
+      fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
     }
   }
 
@@ -78,15 +77,17 @@ namespace kbd {
     file.close();
   }
 
-  std::map<std::string, double> calculate_mean_value(
-      const std::string& root_path, const std::vector<std::string>& folders,
-      const Config& default_configs, bool is_median) {
+  std::map<std::string, double>
+  calculate_mean_value(const std::string& root_path,
+                       const std::vector<std::string>& folders,
+                       const Config& default_configs) {
+
     std::map<std::string, double> dist_dict;
     auto subfix = default_configs.SUBFIX;
     auto anchor_point = default_configs.ANCHOR_POINT;
     auto h = default_configs.H;
     auto w = default_configs.W;
-    
+
     for (const auto& folder : folders) {
       std::string distance = folder.substr(0, folder.find("_"));
       fs::path raw_path = fs::path(root_path) / folder / subfix;
@@ -95,25 +96,20 @@ namespace kbd {
       for (const auto& entry : fs::directory_iterator(raw_path)) {
         if (entry.is_regular_file()) {
           auto raw = load_raw<uint16_t>(entry.path().string(), h, w);
-          auto valid_raw = raw.block<uint16_t>(anchor_point[0] - 25,
-                                               anchor_point[1] - 25, h, w);
-          double mu;
-          if (is_median) {
-            std::vector<double> temp(valid_raw.data(),
-                                     valid_raw.data() + valid_raw.size());
-            std::nth_element(temp.begin(), temp.begin() + temp.size() / 2,
-                             temp.end());
-            mu = temp[temp.size() / 2];
-          } else {
-            mu = valid_raw.mean();
-          }
+          auto valid_raw =
+              raw.block(anchor_point[0] - 25, anchor_point[1] - 25, 50, 50);
+
+          double mu = calculate_mean(valid_raw);
           mean_dist_holder.push_back(mu);
         }
       }
-      double final_mu = std::accumulate(mean_dist_holder.begin(),
-                                        mean_dist_holder.end(), 0.0) /
-                        mean_dist_holder.size();
-      dist_dict[distance] = final_mu;
+
+      if (!mean_dist_holder.empty()) {
+        double final_mu = std::accumulate(mean_dist_holder.begin(),
+                                          mean_dist_holder.end(), 0.0) /
+                          mean_dist_holder.size();
+        dist_dict[distance] = final_mu;
+      }
     }
     return dist_dict;
   }

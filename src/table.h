@@ -53,7 +53,7 @@ namespace kbd {
     arrow::Status arrow_pretty_print(const arrow::ChunkedArray& data);
     std::shared_ptr<arrow::Table>
     trim_table(const std::map<std::string, std::string>& pair_dict);
-    arrow::Status map_table(std::shared_ptr<arrow::Table> table,
+    arrow::Status map_table(std::shared_ptr<arrow::Table>& table,
                             const Config& kbd_config,
                             const std::map<std::string, double>& dist_dict);
   };

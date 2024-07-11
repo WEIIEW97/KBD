@@ -32,8 +32,8 @@ namespace fmt {
 
     // Formats the Eigen::Array using the given format context
     template <typename FormatContext>
-    auto format(const Eigen::Array<T, Rows, Cols>& array,
-                FormatContext& ctx) -> decltype(ctx.out()) {
+    auto format(const Eigen::Array<T, Rows, Cols>& array, FormatContext& ctx)
+        -> decltype(ctx.out()) {
       // Start formatting with a bracket
       auto out = ctx.out();
       fmt::format_to(out, "[");

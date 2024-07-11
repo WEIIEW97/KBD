@@ -23,7 +23,7 @@ namespace kbd {
                 const Config& default_configs, bool is_median) {
     auto all_distannces = retrieve_folder_names(path);
     auto mean_dists =
-        calculate_mean_value(path, all_distannces, default_configs, is_median);
+        calculate_mean_value(path, all_distannces, default_configs);
 
     ArrowTableReader arrow_table_reader;
     auto df = arrow_table_reader.read_csv(table_path);
