@@ -15,7 +15,7 @@ find_package(Ceres REQUIRED)
 
 add_executable(${PROJECT_NAME} 
         # main.cpp
-        test/test_ceres_solver.cpp
+        test/test_linear_regression.cpp
         ${sources}
 )
 

@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-#include "array.h"
+#pragma once
+
+#include <Eigen/Dense>
 
 namespace kbd {
-//  template <typename T>
-//  Array<T> basic_model(Array<T> disp, double focal, double baseline, double k,
-//                       double delta, double b) {
-//    return k * focal * baseline / (disp + delta) + b;
-//  }
-
-  inline Array<double> basic_model(const Array<double>& disp, double focal, double baseline, double k,
-                       double delta, double b) {
+  template <typename T>
+  Eigen::Array<T, Eigen::Dynamic, 1> basic_model(const Eigen::Array<T, Eigen::Dynamic, 1>& disp, T focal, T baseline, T k, T delta, T b) {
     return k * focal * baseline / (disp + delta) + b;
   }
 } // namespace kbd

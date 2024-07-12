@@ -107,8 +107,8 @@ namespace kbd {
       throw std::runtime_error("Required columns are missing in the table");
     }
 
-    auto gt_dist_array =
-        std::static_pointer_cast<arrow::Int64Array>(gt_dist_col->chunk(0)); // it must be int64 type
+    auto gt_dist_array = std::static_pointer_cast<arrow::Int64Array>(
+        gt_dist_col->chunk(0)); // it must be int64 type
     auto focal_array =
         std::static_pointer_cast<arrow::DoubleArray>(focal_col->chunk(0));
     auto baseline_array =
