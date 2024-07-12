@@ -32,8 +32,8 @@ namespace fmt {
 
     // Formats the Eigen::Array using the given format context
     template <typename FormatContext>
-    auto format(const Eigen::Array<T, Rows, Cols>& array, FormatContext& ctx)
-        -> decltype(ctx.out()) {
+    auto format(const Eigen::Array<T, Rows, Cols>& array,
+                FormatContext& ctx) -> decltype(ctx.out()) {
       // Start formatting with a bracket
       auto out = ctx.out();
       fmt::format_to(out, "[");
@@ -42,6 +42,35 @@ namespace fmt {
       for (int i = 0; i < array.size(); ++i) {
         fmt::format_to(out, "{}", array(i));
         if (i < array.size() - 1) {
+          fmt::format_to(out, ", ");
+        }
+      }
+
+      // End formatting with a bracket
+      return fmt::format_to(out, "]");
+    }
+  };
+
+  template <typename T, int sz>
+  struct formatter<Eigen::Vector<T, sz>> {
+    // Parses format specifications from the format string
+    constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) {
+      // No specific format options are needed, so just return the end iterator.
+      return ctx.end();
+    }
+
+    // Formats the Eigen::Array using the given format context
+    template <typename FormatContext>
+    auto format(const Eigen::Vector<T, sz>& vec,
+                FormatContext& ctx) -> decltype(ctx.out()) {
+      // Start formatting with a bracket
+      auto out = ctx.out();
+      fmt::format_to(out, "[");
+
+      // Iterate over the elements of the array
+      for (int i = 0; i < vec.size(); ++i) {
+        fmt::format_to(out, "{}", vec(i));
+        if (i < vec.size() - 1) {
           fmt::format_to(out, ", ");
         }
       }

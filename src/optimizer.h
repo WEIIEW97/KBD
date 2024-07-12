@@ -16,6 +16,9 @@
 #pragma once
 
 #include "model.h"
+#include "eigen_utils.h"
+#include "linear_reg.h"
+#include "format.h"
 
 #include <ceres/ceres.h>
 #include <vector>
@@ -83,10 +86,9 @@ namespace kbd {
       ceres::Solver::Summary summary;
       ceres::Solve(options_, &problem, &summary);
 
-      std::cout << summary.FullReport() << std::endl;
-      std::cout << "Optimized Parameters: k = " << initial_params_[0]
-                << ", delta = " << initial_params_[1]
-                << ", b = " << initial_params_[2] << std::endl;
+      fmt::print("{}\n", summary.FullReport());
+      fmt::print("Optimized Parameters: k = {}, delta = {}, b = {}\n",
+                 initial_params_[0], initial_params_[1], initial_params_[2]);
 
       Eigen::Vector3d kbd_params = {initial_params_[0], initial_params_[1],
                                     initial_params_[2]};
@@ -124,8 +126,8 @@ namespace kbd {
         kbd_x_ = est_;
         kbd_y_ = gt_;
       } else {
-        kbd_x_ = est_.select(mask, est_.setConstant(0));
-        kbd_y_ = est_.select(mask, gt_.setConstant(0));
+        kbd_x_ = mask_out_array<double, bool>(est_, mask);
+        kbd_y_ = mask_out_array<double, bool>(gt_, mask);
       }
 
       if (kbd_x_.size() == 0 || kbd_y_.size() == 0) {
@@ -136,6 +138,44 @@ namespace kbd {
                                                 baseline_);
       auto res = kbd_base_optimizer.run();
       return res;
+    }
+
+    std::tuple<Eigen::Vector2d, Eigen::Vector3d, Eigen::Vector2d> run() {
+      std::tuple<Eigen::Vector2d, Eigen::Vector3d, Eigen::Vector2d> params;
+      auto kbd_res = segment();
+      assert(kbd_res.size() == 3);
+      double k, delta, b, x_min, x_max, y_hat_max, y_hat_min, x_hat_min,
+          x_hat_max, pre_y, after_y, pre_x, after_x;
+
+      x_min = kbd_x_.minCoeff();
+      x_max = kbd_x_.maxCoeff();
+
+      y_hat_max = k * fb_ / (x_min + delta) + b;
+      y_hat_min = k * fb_ / (x_max + delta) + b;
+
+      x_hat_min = fb_ / y_hat_max;
+      x_hat_max = fb_ / y_hat_min;
+
+      pre_y = y_hat_min - compensate_dist_;
+      after_y = y_hat_max + compensate_dist_ * scaling_factor_;
+
+      pre_x = fb_ / pre_y;
+      after_x = fb_ / after_y;
+
+      Eigen::Vector2d x1(pre_x, x_max);
+      Eigen::Vector2d y1(pre_x, x_hat_max);
+
+      Eigen::Vector2d x2(x_min, after_x);
+      Eigen::Vector2d y2(x_hat_min, after_x);
+
+      auto lm1 = linear_regression<double>(x1, y1);
+      auto lm2 = linear_regression<double>(x2, y2);
+
+      fmt::print("Linear Regression 1 Coefficients: {}\n", lm1);
+      fmt::print("Optimized Parameters: (k, delta, b): {}\n", kbd_res);
+      fmt::print("Linear Regression 2 Coefficients: {}\n", lm2);
+
+      return std::make_tuple(lm1, kbd_res, lm2);
     }
 
   private:

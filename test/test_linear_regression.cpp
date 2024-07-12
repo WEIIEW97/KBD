@@ -14,28 +14,18 @@
  * limitations under the License.
  */
 
-#include <Eigen/Dense>
 #include <Eigen/Core>
 #include <array>
 #include <iostream>
 
+#include "../src/eigen_utils.h"
+
 using namespace Eigen;
 using namespace std;
 
-ArrayXi mask_out(const Array<int, -1, 1>& data, const Array<int, -1, 1>& mask) {
-    vector<int> holder;
-    for(int i=0; i<mask.size(); ++i) {
-        if (mask[i] == 1) {
-            holder.push_back(data[i]);
-        }
-    }
-    auto dmap = Map<ArrayXi>(holder.data(), holder.size());
-    ArrayXi masked_data = dmap;
-    return masked_data;
-}
 
 int main() {
-  array<int, 20> data = {0};
+  array<double, 20> data = {0};
   int start_v = 300;
   const int stride = 150;
   const int size = 20;
@@ -47,15 +37,16 @@ int main() {
     cout << v << "\n";
   }
 
-  auto eigen_data_map = Map<Array<int, 20, 1>>(data.data(), data.size());
-  Array<int, 20, 1> eigen_data = eigen_data_map;
+  auto eigen_data_map = Map<Array<double, 20, 1>>(data.data(), data.size());
+  Array<double, 20, 1> eigen_data = eigen_data_map;
   std::array<int, 2> range = {600, 1500};
   Eigen::Array<bool, Eigen::Dynamic, 1> mask =
       (eigen_data > range[0]) && (eigen_data < range[1]);
   auto masked_data = eigen_data.select(mask, 0);
 
   cout << "original data is : " << eigen_data << endl;
-  cout << "after masking data is: " << mask_out(eigen_data, masked_data.cast<int>()) << endl;
+  cout << "bool mask data is : " << mask << endl;
+  cout << "after masking data is: " << kbd::mask_out_array<double, bool>(eigen_data, mask) << endl;
 
   return 0;
 }
