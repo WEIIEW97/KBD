@@ -17,6 +17,10 @@
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
 #include <arrow/pretty_print.h>
+#include "../src/table.h"
+#include "../src/optimizer.h"
+#include "../src/format.h"
+#include "../src/utils.h"
 #include <iostream>
 #include <memory>
 #include <filesystem>
@@ -24,56 +28,39 @@
 namespace fs = std::filesystem;
 
 int main() {
-  arrow::io::IOContext io_context = arrow::io::default_io_context();
-  // Memory pool used by Arrow to efficiently allocate and deallocate memory
-  arrow::MemoryPool* pool = arrow::default_memory_pool();
-  auto cwd = fs::current_path();
-  std::cout << cwd.parent_path().string() << std::endl;
-  std::string file_path = cwd.parent_path().string() + "/depthquality_2024-07-04.csv";
-  arrow::Result<std::shared_ptr<arrow::io::InputStream>> file_result =
-      arrow::io::ReadableFile::Open(file_path, pool);
-  if (!file_result.ok()) {
-    std::cerr << "Failed to open file: " << file_result.status() << std::endl;
-    return -1;
-  }
-  std::shared_ptr<arrow::io::InputStream> input = *file_result;
+  const std::string root_path = "/home/william/Codes/KBD/data/N09ASH24DH0050";
+  const std::string csv_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  const std::string file_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/image_data";
+  kbd::Config default_configs = kbd::Config();
 
-  auto read_options = arrow::csv::ReadOptions::Defaults();
-  auto parse_options = arrow::csv::ParseOptions::Defaults();
-  auto convert_options = arrow::csv::ConvertOptions::Defaults();
+  auto table_parser = kbd::ArrowTableReader();
+  auto df = table_parser.read_csv(csv_path);
+  auto trimmed_df = table_parser.trim_table(default_configs.MAPPED_PAIR_DICT);
+  auto dist_dict = kbd::calculate_mean_value(file_path, kbd::retrieve_folder_names(file_path), default_configs);
+  auto status = table_parser.map_table(trimmed_df, default_configs, dist_dict);
 
-  // Instantiate TableReader from input stream and options
-  auto maybe_reader = arrow::csv::TableReader::Make(
-      io_context, input, read_options, parse_options, convert_options);
-  if (!maybe_reader.ok()) {
-    // Handle TableReader instantiation error...
-  }
-  std::shared_ptr<arrow::csv::TableReader> reader = *maybe_reader;
-
-  // Read table from CSV file
-  auto maybe_table = reader->Read();
-  if (!maybe_table.ok()) {
-    // Handle CSV read error
-    // (for example a CSV syntax error or failed type conversion)
-  }
-  std::shared_ptr<arrow::Table> table = *maybe_table;
-  // Output the column names
-  std::shared_ptr<arrow::Schema> schema = table->schema();
-  std::cout << "Column Names:" << std::endl;
-  for (const auto& field : schema->fields()) {
-    std::cout << field->name() << std::endl;
+  auto col_names = trimmed_df->ColumnNames();
+  for (const auto& v : col_names) {
+    std::cout << v << "\n";
   }
 
-  std::string column_name = "fit plane dist/mm";
-  std::shared_ptr<arrow::ChunkedArray> column =
-      table->GetColumnByName(column_name);
-  if (column == nullptr) {
-    std::cerr << "Column not found: " << column_name << std::endl;
-    return -1;
-  }
+  auto gt_arrow_col = trimmed_df->GetColumnByName(default_configs.GT_DIST_NAME);
+  auto est_arrow_col = trimmed_df->GetColumnByName(default_configs.AVG_DIST_NAME);
+  auto gt_double = std::static_pointer_cast<arrow::DoubleArray>(gt_arrow_col->chunk(0));
+  auto est_double = std::static_pointer_cast<arrow::DoubleArray>(est_arrow_col->chunk(0));
+  Eigen::Map<const Eigen::ArrayXd> gt_eigen_array(gt_double->raw_values(), gt_double->length());
+  Eigen::Map<const Eigen::ArrayXd> est_eigen_array(est_double->raw_values(), est_double->length());
 
-  // Optionally print the column data
-  std::cout << "Data in column '" << column_name << "':" << std::endl;
-  auto status = arrow::PrettyPrint(*column->chunk(0), {}, &std::cout);
+  std::array<int, 2> disjoint_depth_range = {600, 3000};
+  auto linear_kbd_optim = kbd::JointLinearSmoothingOptimizer(
+    gt_eigen_array.cast<double>(),
+    est_eigen_array.cast<double>(),
+    table_parser.focal_,
+    table_parser.baseline_,
+    disjoint_depth_range
+  );
+
+  auto [lm1, kbd_res, km2] = linear_kbd_optim.run();
+  
   return 0;
 }

@@ -78,7 +78,7 @@ namespace kbd {
   }
 
   std::map<std::string, double>
-  calculate_mean_value(const std::string& root_path,
+  calculate_mean_value(const std::string& file_path,
                        const std::vector<std::string>& folders,
                        const Config& default_configs) {
 
@@ -90,7 +90,7 @@ namespace kbd {
 
     for (const auto& folder : folders) {
       std::string distance = folder.substr(0, folder.find("_"));
-      fs::path raw_path = fs::path(root_path) / folder / subfix;
+      fs::path raw_path = fs::path(file_path) / folder / subfix;
       std::vector<double> mean_dist_holder;
 
       for (const auto& entry : fs::directory_iterator(raw_path)) {
