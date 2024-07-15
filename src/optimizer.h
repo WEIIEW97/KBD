@@ -147,6 +147,8 @@ namespace kbd {
       double k, delta, b, x_min, x_max, y_hat_max, y_hat_min, x_hat_min,
           x_hat_max, pre_y, after_y, pre_x, after_x;
 
+      k = kbd_res(0), delta = kbd_res(1), b = kbd_res(2);
+
       x_min = kbd_x_.minCoeff();
       x_max = kbd_x_.maxCoeff();
 
@@ -170,10 +172,6 @@ namespace kbd {
 
       auto lm1 = linear_regression<double>(x1, y1);
       auto lm2 = linear_regression<double>(x2, y2);
-
-      fmt::print("Linear Regression 1 Coefficients: {}\n", lm1);
-      fmt::print("Optimized Parameters: (k, delta, b): {}\n", kbd_res);
-      fmt::print("Linear Regression 2 Coefficients: {}\n", lm2);
 
       return std::make_tuple(lm1, kbd_res, lm2);
     }

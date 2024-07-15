@@ -19,34 +19,52 @@
 #include <iostream>
 
 #include "../src/eigen_utils.h"
+#include "../src/linear_reg.h"
+#include "../src/table.h"
+#include "../src/utils.h"
 
 using namespace Eigen;
 using namespace std;
 
-
 int main() {
-  array<double, 20> data = {0};
-  int start_v = 300;
-  const int stride = 150;
-  const int size = 20;
-  for (int i = 0; i < size; ++i) {
-    data[i] = start_v + (i - 1) * stride;
+  const std::string root_path = "/home/william/Codes/KBD/data/N09ASH24DH0050";
+  const std::string csv_path =
+      "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  const std::string file_path =
+      "/home/william/Codes/KBD/data/N09ASH24DH0050/image_data";
+  kbd::Config default_configs = kbd::Config();
+
+  auto table_parser = kbd::ArrowTableReader();
+  auto df = table_parser.read_csv(csv_path);
+  auto trimmed_df = table_parser.trim_table(default_configs.MAPPED_PAIR_DICT);
+  auto dist_dict = kbd::calculate_mean_value(
+      file_path, kbd::retrieve_folder_names(file_path), default_configs);
+  auto status = table_parser.map_table(trimmed_df, default_configs, dist_dict);
+
+  auto col_names = trimmed_df->ColumnNames();
+  for (const auto& v : col_names) {
+    std::cout << v << "\n";
   }
 
-  for(const auto& v : data) {
-    cout << v << "\n";
-  }
+  auto gt_arrow_col = trimmed_df->GetColumnByName(default_configs.GT_DIST_NAME);
+  auto est_arrow_col =
+      trimmed_df->GetColumnByName(default_configs.AVG_DISP_NAME);
+  auto gt_int64 =
+      std::static_pointer_cast<arrow::Int64Array>(gt_arrow_col->chunk(0));
+  auto est_double =
+      std::static_pointer_cast<arrow::DoubleArray>(est_arrow_col->chunk(0));
+  Eigen::Map<const Eigen::Array<int64_t, Eigen::Dynamic, 1>> gt_eigen_array(
+      gt_int64->raw_values(), gt_int64->length());
+  Eigen::Map<const Eigen::ArrayXd> est_eigen_array(est_double->raw_values(),
+                                                   est_double->length());
 
-  auto eigen_data_map = Map<Array<double, 20, 1>>(data.data(), data.size());
-  Array<double, 20, 1> eigen_data = eigen_data_map;
-  std::array<int, 2> range = {600, 1500};
-  Eigen::Array<bool, Eigen::Dynamic, 1> mask =
-      (eigen_data > range[0]) && (eigen_data < range[1]);
-  auto masked_data = eigen_data.select(mask, 0);
+  std::cout << gt_eigen_array.cast<double>() << std::endl;
+  std::cout << est_eigen_array.cast<double>() << std::endl;
 
-  cout << "original data is : " << eigen_data << endl;
-  cout << "bool mask data is : " << mask << endl;
-  cout << "after masking data is: " << kbd::mask_out_array<double, bool>(eigen_data, mask) << endl;
+  auto res = kbd::linear_regression<double>(est_eigen_array.cast<double>(), gt_eigen_array.cast<double>());
+
+  std::cout << "Linear Regression parameters are: \n";
+  std::cout << res << std::endl;
 
   return 0;
 }

@@ -45,22 +45,35 @@ int main() {
   }
 
   auto gt_arrow_col = trimmed_df->GetColumnByName(default_configs.GT_DIST_NAME);
-  auto est_arrow_col = trimmed_df->GetColumnByName(default_configs.AVG_DIST_NAME);
-  auto gt_double = std::static_pointer_cast<arrow::DoubleArray>(gt_arrow_col->chunk(0));
+  auto est_arrow_col = trimmed_df->GetColumnByName(default_configs.AVG_DISP_NAME);
+  auto gt_int64 = std::static_pointer_cast<arrow::Int64Array>(gt_arrow_col->chunk(0));
   auto est_double = std::static_pointer_cast<arrow::DoubleArray>(est_arrow_col->chunk(0));
-  Eigen::Map<const Eigen::ArrayXd> gt_eigen_array(gt_double->raw_values(), gt_double->length());
+  Eigen::Map<const Eigen::Array<int64_t, Eigen::Dynamic, 1>> gt_eigen_array(gt_int64->raw_values(), gt_int64->length());
   Eigen::Map<const Eigen::ArrayXd> est_eigen_array(est_double->raw_values(), est_double->length());
 
+  std::cout << gt_eigen_array << std::endl;
+  std::cout << est_eigen_array << std::endl;
+
   std::array<int, 2> disjoint_depth_range = {600, 3000};
+
+  std::cout << gt_eigen_array.cast<double>() << std::endl;
+  std::cout << est_eigen_array.cast<double>() << std::endl;
+
   auto linear_kbd_optim = kbd::JointLinearSmoothingOptimizer(
     gt_eigen_array.cast<double>(),
     est_eigen_array.cast<double>(),
     table_parser.focal_,
     table_parser.baseline_,
-    disjoint_depth_range
+    disjoint_depth_range,
+    200,
+    10,
+    false
   );
 
-  auto [lm1, kbd_res, km2] = linear_kbd_optim.run();
+  auto [lm1, kbd_res, lm2] = linear_kbd_optim.run();
+  fmt::print("Linear Regression 1 Coefficients: {}\n", lm1);
+  fmt::print("Optimized Parameters: (k, delta, b): {}\n", kbd_res);
+  fmt::print("Linear Regression 2 Coefficients: {}\n", lm2);
   
   return 0;
 }
