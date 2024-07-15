@@ -29,6 +29,7 @@ namespace kbd {
     int H = 480;
     int W = 640;
     float EPSILON = 1e-6;
+    int EVAL_STAGE_STEPS = 200;
 
     std::vector<int> ANCHOR_POINT = {H / 2, W / 2};
 
@@ -47,6 +48,13 @@ namespace kbd {
         {"相机基线", "baseline"},
         {"绝对误差/mm", "absolute_error"},
     };
+  };
+
+  struct JointSmoothArguments {
+    std::array<int, 2> disjoint_depth_range = {600, 3000};
+    double compensate_dist = 200;
+    double scaling_factor = 10;
+    bool apply_global = false;
   };
 } // namespace kbd
 
