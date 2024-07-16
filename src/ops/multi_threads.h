@@ -46,23 +46,23 @@ namespace kbd {
 
         std::future<return_type> res = task->get_future();
         {
-          std::unique_lock<std::mutex> lock(queue_mutex);
+          std::unique_lock<std::mutex> lock(queue_mutex_);
 
-          if (stop)
+          if (stop_)
             throw std::runtime_error("enqueue on stopped ThreadPool");
 
-          tasks.emplace([task]() { (*task)(); });
+          tasks_.emplace([task]() { (*task)(); });
         }
-        condition.notify_one();
+        condition_.notify_one();
         return res;
       }
 
     private:
-      std::vector<std::thread> workers;
-      std::queue<std::function<void()>> tasks;
-      std::mutex queue_mutex;
-      std::condition_variable condition;
-      bool stop;
+      std::vector<std::thread> workers_;
+      std::queue<std::function<void()>> tasks_;
+      std::mutex queue_mutex_;
+      std::condition_variable condition_;
+      bool stop_;
     };
 
     void parallel_copy(const std::string& src, const std::string& dst,
