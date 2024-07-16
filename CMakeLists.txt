@@ -12,17 +12,23 @@ find_package(nlohmann_json REQUIRED)
 find_package(Arrow REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Ceres REQUIRED)
-find_package(OpenMP REQUIRED)
 
 # Platform-specific settings
 if(MSVC)
+    # Enable OpenMP for MSVC
+    find_package(OpenMP REQUIRED)
     add_compile_options(/openmp)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+elseif(APPLE)
+    # Disable OpenMP for macOS
+    message(STATUS "OpenMP is disabled for macOS.")
 else()
+    # Enable OpenMP for Linux and other Unix-like systems
     find_package(Threads REQUIRED)
+    find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
     endif()
 endif()
 
@@ -43,7 +49,7 @@ target_include_directories(
         ${CERES_INCLUDE_DIRS}
 )
 
-if(MSVC)
+if(OpenMP_CXX_FOUND AND NOT APPLE)
         target_link_libraries(
                 ${PROJECT_NAME}
                 PRIVATE
@@ -61,9 +67,8 @@ else()
                 Arrow::arrow_shared
                 fmt::fmt
                 ${CERES_LIBRARIES}
-                Threads::Threads
-        )
-endif()
+        )  
+        endif()
 
 
 target_compile_definitions(
