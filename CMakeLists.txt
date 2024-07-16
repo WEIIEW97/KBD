@@ -12,6 +12,12 @@ find_package(nlohmann_json REQUIRED)
 find_package(Arrow REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(OpenMP REQUIRED)
+
+if(OpenMP_CXX_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+endif()
 
 add_executable(${PROJECT_NAME} 
         # main.cpp
@@ -36,4 +42,12 @@ target_link_libraries(
         Arrow::arrow_shared
         fmt::fmt
         ${CERES_LIBRARIES}
+        OpenMP::OpenMP_CXX
+)
+
+target_compile_definitions(
+        ${PROJECT_NAME}
+        PRIVATE
+        EIGEN_USE_THREADS
+        # EIGEN_USE_MKL_ALL       
 )
