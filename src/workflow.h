@@ -43,7 +43,6 @@ namespace kbd {
   private:
     double focal_, baseline_, cd_, sf_;
     bool apply_global_;
-    int eval_stage_steps_;
     Eigen::ArrayXd gt_double_, est_double_;
     Eigen::Vector2d lm1_, lm2_;
     Eigen::Vector3d kbd_res_;

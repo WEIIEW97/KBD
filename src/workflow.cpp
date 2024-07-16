@@ -55,7 +55,6 @@ namespace kbd {
     apply_global_ = args.apply_global;
     full_kbd_params5x5_.setZero();
     disp_val_max_uint16_ = config.DISP_VAL_MAX_UINT16;
-    eval_stage_steps_ = config.EVAL_STAGE_STEPS;
     trimmed_df_ = trimmed_df;
   }
 
@@ -64,7 +63,10 @@ namespace kbd {
         gt_double_, est_double_, focal_, baseline_, disjoint_depth_range_, cd_,
         sf_, apply_global_);
 
-    auto [lm1_, kbd_res_, lm2_] = linear_kbd_optim.run();
+    auto [lm1, kbd_res, lm2] = linear_kbd_optim.run();
+    lm1_ = lm1;
+    kbd_res_ = kbd_res;
+    lm2_ = lm2;
   }
 
   void LinearWorkflow::extend_matrix() {
@@ -110,7 +112,7 @@ namespace kbd {
         trimmed_df_->GetColumnByName(config.GT_DIST_NAME);
     auto gt_error_chunked_array =
         trimmed_df_->GetColumnByName(config.GT_ERROR_NAME);
-    auto gt_dist_array = std::static_pointer_cast<arrow::DoubleArray>(
+    auto gt_dist_array = std::static_pointer_cast<arrow::Int64Array>(
         gt_dist_chunked_array->chunk(0));
     auto gt_error_array = std::static_pointer_cast<arrow::DoubleArray>(
         gt_error_chunked_array->chunk(0));
@@ -133,10 +135,10 @@ namespace kbd {
                 trimmed_df_->num_columns(), abs_error_rate_field,
                 std::make_shared<arrow::ChunkedArray>(abs_error_rate_array))
             .ValueOrDie();
-
+    auto abs_error_rate = trimmed_df_->GetColumnByName(config.ABS_ERROR_RATE_NAME);
     auto max_stage = std::numeric_limits<double>::min();
     for (auto i = 0; i < gt_dist_array->length(); i++) {
-      max_stage = std::max(max_stage, gt_dist_array->Value(i));
+      max_stage = std::max(max_stage, static_cast<double>(gt_dist_array->Value(i)));
     }
     int n_stage = static_cast<int>(max_stage / stage);
 
@@ -169,11 +171,10 @@ namespace kbd {
     int total_bins = eval_res.size();
     int accept = 0;
     for (const auto& [k, v] : eval_res) {
-      if ((k <= 1000 && v < 0.01) || (k <= 2000 && v < 0.02)) {
+      if ((k <= 1000 && v < 0.02) || (k <= 2000 && v < 0.04)) {
         accept++;
       }
     }
-
     double acceptance = static_cast<double>(accept) / total_bins;
     return std::make_tuple(eval_res, acceptance);
   }

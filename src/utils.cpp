@@ -58,9 +58,10 @@ namespace kbd {
     }
   }
 
-  void save_arrays_to_json(const std::string& path,
-                           const std::vector<uint16_t>& arr1d,
-                           const Eigen::MatrixXd& arr2d) {
+  void
+  save_arrays_to_json(const std::string& path,
+                      const Eigen::Array<uint16_t, Eigen::Dynamic, 1>& arr1d,
+                      const Eigen::MatrixXd& arr2d) {
     json J;
     for (auto i : arr1d) {
       J["disp_nodes"].push_back(i);

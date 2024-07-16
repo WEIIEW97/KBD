@@ -52,7 +52,7 @@ namespace kbd {
 
   struct JointSmoothArguments {
     std::array<int, 2> disjoint_depth_range = {600, 3000};
-    double compensate_dist = 200;
+    double compensate_dist = 400;
     double scaling_factor = 10;
     bool apply_global = false;
   };

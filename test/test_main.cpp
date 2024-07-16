@@ -17,9 +17,7 @@
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
 #include <arrow/pretty_print.h>
-#include "../src/table.h"
-#include "../src/optimizer.h"
-#include "../src/format.h"
+#include "../src/workflow.h"
 #include "../src/utils.h"
 #include <iostream>
 #include <memory>
@@ -32,48 +30,25 @@ int main() {
   const std::string csv_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
   const std::string file_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/image_data";
   kbd::Config default_configs = kbd::Config();
+  kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
 
-  auto table_parser = kbd::ArrowTableReader();
-  auto df = table_parser.read_csv(csv_path);
-  auto trimmed_df = table_parser.trim_table(default_configs.MAPPED_PAIR_DICT);
-  auto dist_dict = kbd::calculate_mean_value(file_path, kbd::retrieve_folder_names(file_path), default_configs);
-  auto status = table_parser.map_table(trimmed_df, default_configs, dist_dict);
+  kbd::LinearWorkflow workflow;
 
-  auto col_names = trimmed_df->ColumnNames();
-  for (const auto& v : col_names) {
-    std::cout << v << "\n";
-  }
+  workflow.preprocessing(file_path, csv_path, default_configs, args);
+  auto [eval_res, acceptance] = workflow.eval(default_configs);
+  std::cout << "acceptance rate: " << acceptance << std::endl;
 
-  auto gt_arrow_col = trimmed_df->GetColumnByName(default_configs.GT_DIST_NAME);
-  auto est_arrow_col = trimmed_df->GetColumnByName(default_configs.AVG_DISP_NAME);
-  auto gt_int64 = std::static_pointer_cast<arrow::Int64Array>(gt_arrow_col->chunk(0));
-  auto est_double = std::static_pointer_cast<arrow::DoubleArray>(est_arrow_col->chunk(0));
-  Eigen::Map<const Eigen::Array<int64_t, Eigen::Dynamic, 1>> gt_eigen_array(gt_int64->raw_values(), gt_int64->length());
-  Eigen::Map<const Eigen::ArrayXd> est_eigen_array(est_double->raw_values(), est_double->length());
-
-  std::cout << gt_eigen_array << std::endl;
-  std::cout << est_eigen_array << std::endl;
-
-  std::array<int, 2> disjoint_depth_range = {600, 3000};
-
-  std::cout << gt_eigen_array.cast<double>() << std::endl;
-  std::cout << est_eigen_array.cast<double>() << std::endl;
-
-  auto linear_kbd_optim = kbd::JointLinearSmoothingOptimizer(
-    gt_eigen_array.cast<double>(),
-    est_eigen_array.cast<double>(),
-    table_parser.focal_,
-    table_parser.baseline_,
-    disjoint_depth_range,
-    200,
-    10,
-    false
-  );
-
-  auto [lm1, kbd_res, lm2] = linear_kbd_optim.run();
-  fmt::print("Linear Regression 1 Coefficients: {}\n", lm1);
-  fmt::print("Optimized Parameters: (k, delta, b): {}\n", kbd_res);
-  fmt::print("Linear Regression 2 Coefficients: {}\n", lm2);
+  workflow.optimize();
+  workflow.extend_matrix();
+  workflow.pivot();
   
+  auto [disp_nodes, param_matrix] = workflow.pivot();
+  std::cout << disp_nodes << std::endl;
+  std::cout << param_matrix << std::endl;
+  
+  const std::string dumped_json_path = "/home/william/Codes/KBD/test/segmented_linear_KBD_params.json";
+  kbd::save_arrays_to_json(dumped_json_path, disp_nodes, param_matrix);
+
+  fmt::print("Working done!\n");
   return 0;
 }

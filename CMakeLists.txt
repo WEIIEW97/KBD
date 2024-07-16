@@ -15,7 +15,7 @@ find_package(Ceres REQUIRED)
 
 add_executable(${PROJECT_NAME} 
         # main.cpp
-        test/test_workflow.cpp
+        test/test_main.cpp
         ${sources}
 )
 

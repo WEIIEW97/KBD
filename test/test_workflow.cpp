@@ -15,9 +15,28 @@
  */
 
  #include "../src/workflow.h"
+ #include <iostream>
 
  int main() {
+  const std::string root_path = "/home/william/Codes/KBD/data/N09ASH24DH0050";
+  const std::string csv_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  const std::string file_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/image_data";
+  kbd::Config default_configs = kbd::Config();
+  kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
 
-    
-    return 0;
+  kbd::LinearWorkflow workflow;
+
+  workflow.preprocessing(file_path, csv_path, default_configs, args);
+  auto [eval_res, acceptance] = workflow.eval(default_configs);
+  std::cout << "acceptance rate: " << acceptance << std::endl;
+
+  workflow.optimize();
+  workflow.extend_matrix();
+  workflow.pivot();
+  
+  auto [disp_nodes, param_matrix] = workflow.pivot();
+  std::cout << disp_nodes << std::endl;
+  std::cout << param_matrix << std::endl;
+
+  return 0;
  }

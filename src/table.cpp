@@ -123,7 +123,6 @@ namespace kbd {
     auto fb = focal_ * baseline_;
     for (auto i = 0; i < gt_dist_array->length(); ++i) {
       auto gt_dist_value = gt_dist_array->Value(i);
-      std::cout << std::to_string(gt_dist_value) << std::endl;
       double avg_dist_value = dist_dict.at(std::to_string(gt_dist_value));
       ARROW_RETURN_NOT_OK(avg_dist_builder.Append(avg_dist_value));
 

@@ -25,7 +25,11 @@ def read_csv(path: str) -> pd.DataFrame:
 
 
 def read_table(path: str, pair_dict: dict) -> pd.DataFrame:
-    df = read_excel(path)
+    pos = path.find("csv")
+    if pos != -1:
+        df = read_csv(path)
+    else:
+        df = read_excel(path)
     df_sel = df[list(pair_dict.keys())]
     needed_df = df_sel.rename(columns=pair_dict)
     return needed_df

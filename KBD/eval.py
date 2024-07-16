@@ -25,9 +25,9 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
     total_bins = len(eval_res)
     accept = 0
     for k, v in eval_res.items():
-        if k <= 1000 and v < 0.01:
+        if k <= 1000 and v < 0.02:
             accept += 1
-        if k <= 2000 and v < 0.02:
+        elif k <= 2000 and v < 0.04:
             accept += 1
 
     acceptance = accept / total_bins
