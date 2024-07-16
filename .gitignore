@@ -7,13 +7,16 @@ tests/
 
 *.ipynb
 
-build/
-dist/
+
 
 .vscode
 .cache
 .idea
+.vs
 
 
 cmake-build-release
 cmake-build-debug
+out
+build
+dist

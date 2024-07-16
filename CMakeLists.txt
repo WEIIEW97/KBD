@@ -14,10 +14,18 @@ find_package(fmt REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenMP REQUIRED)
 
-if(OpenMP_CXX_FOUND)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+# Platform-specific settings
+if(MSVC)
+    add_compile_options(/openmp)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+else()
+    find_package(Threads REQUIRED)
+    if(OpenMP_CXX_FOUND)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+    endif()
 endif()
+
 
 add_executable(${PROJECT_NAME} 
         # main.cpp
@@ -35,15 +43,28 @@ target_include_directories(
         ${CERES_INCLUDE_DIRS}
 )
 
-target_link_libraries(
-        ${PROJECT_NAME}
-        PRIVATE
-        nlohmann_json::nlohmann_json
-        Arrow::arrow_shared
-        fmt::fmt
-        ${CERES_LIBRARIES}
-        OpenMP::OpenMP_CXX
-)
+if(MSVC)
+        target_link_libraries(
+                ${PROJECT_NAME}
+                PRIVATE
+                nlohmann_json::nlohmann_json
+                Arrow::arrow_shared
+                fmt::fmt
+                ${CERES_LIBRARIES}
+                OpenMP::OpenMP_CXX
+        )
+else()
+        target_link_libraries(
+                ${PROJECT_NAME}
+                PRIVATE
+                nlohmann_json::nlohmann_json
+                Arrow::arrow_shared
+                fmt::fmt
+                ${CERES_LIBRARIES}
+                Threads::Threads
+        )
+endif()
+
 
 target_compile_definitions(
         ${PROJECT_NAME}

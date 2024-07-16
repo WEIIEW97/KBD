@@ -15,9 +15,11 @@
 namespace fs = std::filesystem;
 
 int main() {
-  std::string root_path = "/home/william/Codes/KBD/data/N09ASH24DH0050";
-  std::string file_path = root_path + "/image_data";
-  std::string csv_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  auto cwd = fs::current_path();  // note that this is the binary path
+  auto home_path = cwd.parent_path().string();
+  const std::string root_path = home_path + "/data/N09ASH24DH0050";
+  const std::string csv_path = home_path + "/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  const std::string file_path = home_path + "/data/N09ASH24DH0050/image_data";
   auto default_config = kbd::Config();
 
   auto arrow_csv_reader = kbd::ArrowTableReader();

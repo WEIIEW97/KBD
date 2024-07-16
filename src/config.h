@@ -26,6 +26,7 @@ namespace kbd {
   struct Config {
     uint16_t DISP_VAL_MAX_UINT16 = 32767;
     std::string SUBFIX = "DEPTH/raw";
+    std::string CAMPARAM_NAME = "camparam.txt";
     int H = 480;
     int W = 640;
     float EPSILON = 1e-6;

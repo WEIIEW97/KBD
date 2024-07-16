@@ -26,9 +26,11 @@
 namespace fs = std::filesystem;
 
 int main() {
-  const std::string root_path = "/home/william/Codes/KBD/data/N09ASH24DH0050";
-  const std::string csv_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
-  const std::string file_path = "/home/william/Codes/KBD/data/N09ASH24DH0050/image_data";
+  auto cwd = fs::current_path();  // note that this is the binary path
+  auto home_path = cwd.parent_path().string();
+  const std::string root_path = home_path + "/data/N09ASH24DH0050";
+  const std::string csv_path = home_path + "/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  const std::string file_path = home_path + "/data/N09ASH24DH0050/image_data";
   kbd::Config default_configs = kbd::Config();
   kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
 
@@ -46,7 +48,7 @@ int main() {
   std::cout << disp_nodes << std::endl;
   std::cout << param_matrix << std::endl;
   
-  const std::string dumped_json_path = "/home/william/Codes/KBD/test/segmented_linear_KBD_params.json";
+  const std::string dumped_json_path = home_path + "/test/segmented_linear_KBD_params.json";
   kbd::save_arrays_to_json(dumped_json_path, disp_nodes, param_matrix);
 
   fmt::print("Working done!\n");

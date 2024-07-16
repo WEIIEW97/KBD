@@ -16,14 +16,11 @@
 
 #pragma once
 
-#include "table.h"
-#include "utils.h"
+#include <Eigen/Dense>
+#include <array>
 
 namespace kbd {
-  std::tuple<std::shared_ptr<arrow::Table>, double, double>
-  preprocessing(const std::string& path, const std::string& table_path,
-                const Config& default_configs, bool is_median);
-  std::tuple<std::map<double, double>, double>
-  eval(const std::string& path, const std::string& table_path,
-       const Config& default_configs, int stage, bool is_median);
+  namespace ops {
+    
+  } // namespace ops
 } // namespace kbd

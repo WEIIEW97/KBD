@@ -17,6 +17,7 @@
 #include <Eigen/Core>
 #include <array>
 #include <iostream>
+#include <filesystem>
 
 #include "../src/eigen_utils.h"
 #include "../src/linear_reg.h"
@@ -25,13 +26,15 @@
 
 using namespace Eigen;
 using namespace std;
+namespace fs = std::filesystem;
 
 int main() {
-  const std::string root_path = "/home/william/Codes/KBD/data/N09ASH24DH0050";
-  const std::string csv_path =
-      "/home/william/Codes/KBD/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
-  const std::string file_path =
-      "/home/william/Codes/KBD/data/N09ASH24DH0050/image_data";
+
+  auto cwd = fs::current_path();  // note that this is the binary path
+  auto home_path = cwd.parent_path().string();
+  const std::string root_path = home_path + "/data/N09ASH24DH0050";
+  const std::string csv_path = home_path + "/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
+  const std::string file_path = home_path + "/data/N09ASH24DH0050/image_data";
   kbd::Config default_configs = kbd::Config();
 
   auto table_parser = kbd::ArrowTableReader();

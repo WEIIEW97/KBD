@@ -18,9 +18,14 @@
 #include <Eigen/Core>
 #include <fstream>
 #include <string>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 int main() {
-    std::string test_json_save_path = "/home/william/Codes/KBD/test/test.json";
+    auto cwd = fs::current_path();  // note that this is the binary path
+    auto home_path = cwd.parent_path().string();
+    std::string test_json_save_path = home_path + "/test/test.json";
     kbd::json J;
     Eigen::Matrix3d mat = Eigen::Matrix3d::Random();
     std::vector<uint16_t> disp_nodes = {1,2,3,4,5};
