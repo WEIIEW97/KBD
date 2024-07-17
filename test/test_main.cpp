@@ -29,7 +29,7 @@ int main() {
   auto cwd = fs::current_path();  // note that this is the binary path
   auto home_path = cwd.parent_path().string();
   const std::string root_path = home_path + "/data/N09ASH24DH0050";
-  const std::string csv_path = home_path + "/data/N09ASH24DH0050/depthquality-2024-05-18.csv";
+  const std::string csv_path = home_path + "/data/N09ASH24DH0050/depthquality_2024-07-09.csv";
   const std::string file_path = home_path + "/data/N09ASH24DH0050/image_data";
   kbd::Config default_configs = kbd::Config();
   kbd::JointSmoothArguments args = kbd::JointSmoothArguments();

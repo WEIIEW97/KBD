@@ -46,11 +46,11 @@ namespace kbd {
     Eigen::ArrayXd gt_double_, est_double_;
     Eigen::Vector2d lm1_, lm2_;
     Eigen::Vector3d kbd_res_;
-    Eigen::Matrix<double, 5, 5> full_kbd_params5x5_;
     std::array<int, 2> disjoint_depth_range_ = {0};
     uint16_t disp_val_max_uint16_;
 
   public:
     std::shared_ptr<arrow::Table> trimmed_df_;
+    Eigen::Matrix<double, 5, 5> full_kbd_params5x5_;
   };
 } // namespace kbd

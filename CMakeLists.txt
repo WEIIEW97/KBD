@@ -35,7 +35,7 @@ endif()
 
 add_executable(${PROJECT_NAME} 
         # main.cpp
-        test/test_main.cpp
+        test/test_eigen_io.cpp
         ${sources}
 )
 
@@ -50,6 +50,7 @@ target_include_directories(
 )
 
 if(OpenMP_CXX_FOUND AND NOT APPLE)
+        add_definitions(-DUSE_OPENMP)
         target_link_libraries(
                 ${PROJECT_NAME}
                 PRIVATE

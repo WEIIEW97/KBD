@@ -21,38 +21,44 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-namespace Eigen {
+namespace kbd {
   // https://stackoverflow.com/a/25389481/11927397
-  template <class Matrix>
-  inline void write_binary(const std::string& filename, const Matrix& matrix) {
+  template <class Derived>
+  void write_binary(const std::string& filename,
+                    const Eigen::PlainObjectBase<Derived>& matrix) {
     std::ofstream out(filename,
                       std::ios::out | std::ios::binary | std::ios::trunc);
     if (out.is_open()) {
-      typename Matrix::Index rows = matrix.rows(), cols = matrix.cols();
-      out.write(reinterpret_cast<char*>(&rows), sizeof(typename Matrix::Index));
-      out.write(reinterpret_cast<char*>(&cols), sizeof(typename Matrix::Index));
+      typedef typename Derived::Index Index;
+      typedef typename Derived::Scalar Scalar;
+      Index rows = matrix.rows(), cols = matrix.cols();
+      out.write(reinterpret_cast<char*>(&rows),
+                sizeof(typename Derived::Index));
+      out.write(reinterpret_cast<char*>(&cols),
+                sizeof(typename Derived::Index));
       out.write(reinterpret_cast<const char*>(matrix.data()),
                 rows * cols *
-                    static_cast<typename Matrix::Index>(
-                        sizeof(typename Matrix::Scalar)));
+                    static_cast<typename Derived::Index>(
+                        sizeof(typename Derived::Scalar)));
       out.close();
     } else {
       std::cout << "Can not write to file: " << filename << std::endl;
     }
   }
 
-  template <class Matrix>
-  inline void read_binary(const std::string& filename, Matrix& matrix) {
+  template <class Derived>
+  void read_binary(const std::string& filename,
+                   Eigen::PlainObjectBase<Derived>& matrix) {
     std::ifstream in(filename, std::ios::in | std::ios::binary);
     if (in.is_open()) {
-      typename Matrix::Index rows = 0, cols = 0;
-      in.read(reinterpret_cast<char*>(&rows), sizeof(typename Matrix::Index));
-      in.read(reinterpret_cast<char*>(&cols), sizeof(typename Matrix::Index));
+      typename Derived::Index rows = 0, cols = 0;
+      in.read(reinterpret_cast<char*>(&rows), sizeof(typename Derived::Index));
+      in.read(reinterpret_cast<char*>(&cols), sizeof(typename Derived::Index));
       matrix.resize(rows, cols);
       in.read(reinterpret_cast<char*>(matrix.data()),
               rows * cols *
-                  static_cast<typename Matrix::Index>(
-                      sizeof(typename Matrix::Scalar)));
+                  static_cast<typename Derived::Index>(
+                      sizeof(typename Derived::Scalar)));
       in.close();
     } else {
       std::cout << "Can not open binary matrix file: " << filename << std::endl;
@@ -61,8 +67,8 @@ namespace Eigen {
 
   // https://scicomp.stackexchange.com/a/21438
   template <class SparseMatrix>
-  inline void write_binary_sparse(const std::string& filename,
-                                  const SparseMatrix& matrix) {
+  void write_binary_sparse(const std::string& filename,
+                           const SparseMatrix& matrix) {
     assert(matrix.isCompressed() == true);
     std::ofstream out(filename,
                       std::ios::binary | std::ios::out | std::ios::trunc);
@@ -105,8 +111,7 @@ namespace Eigen {
   }
 
   template <class SparseMatrix>
-  inline void read_binary_sparse(const std::string& filename,
-                                 SparseMatrix& matrix) {
+  void read_binary_sparse(const std::string& filename, SparseMatrix& matrix) {
     std::ifstream in(filename, std::ios::binary | std::ios::in);
     if (in.is_open()) {
       typename SparseMatrix::Index rows, cols, nnz, inSz, outSz;
@@ -144,4 +149,4 @@ namespace Eigen {
                 << std::endl;
     }
   }
-} // namespace Eigen
+} // namespace kbd
