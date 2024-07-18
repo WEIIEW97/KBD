@@ -17,13 +17,12 @@
 #ifndef KBD_UTILS_H
 #define KBD_UTILS_H
 
-#include "shared.h"
 #include "array.h"
 #include "config.h"
 
 #include <nlohmann/json.hpp>
 #include <Eigen/Core>
-
+#include <iostream>
 namespace kbd {
   namespace fs = std::filesystem;
   using json = nlohmann::json;
@@ -55,6 +54,21 @@ namespace kbd {
     ndArray<uint16_t> eigen_matrix = matrix;
 
     return eigen_matrix;
+  }
+
+  template <typename T>
+  void save_raw(const std::string& path, const ndArray<T>& matrix) {
+    std::ofstream file(path, std::ios::binary);
+    if (!file) {
+      std::cerr << "Cannot open file for writing: " << path << std::endl;
+    }
+
+    file.write(reinterpret_cast<const char*>(matrix.data()),
+               matrix.size() * sizeof(T));
+    if (!file) {
+      std::cerr << "Error writing to file: " << path << std::endl;
+    }
+    file.close();
   }
 
   template <typename T, int Rows, int Cols>

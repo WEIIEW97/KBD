@@ -135,10 +135,12 @@ namespace kbd {
                 trimmed_df_->num_columns(), abs_error_rate_field,
                 std::make_shared<arrow::ChunkedArray>(abs_error_rate_array))
             .ValueOrDie();
-    auto abs_error_rate = trimmed_df_->GetColumnByName(config.ABS_ERROR_RATE_NAME);
+    auto abs_error_rate =
+        trimmed_df_->GetColumnByName(config.ABS_ERROR_RATE_NAME);
     auto max_stage = std::numeric_limits<double>::min();
     for (auto i = 0; i < gt_dist_array->length(); i++) {
-      max_stage = std::max(max_stage, static_cast<double>(gt_dist_array->Value(i)));
+      max_stage =
+          std::max(max_stage, static_cast<double>(gt_dist_array->Value(i)));
     }
     int n_stage = static_cast<int>(max_stage / stage);
 
@@ -178,5 +180,8 @@ namespace kbd {
     double acceptance = static_cast<double>(accept) / total_bins;
     return std::make_tuple(eval_res, acceptance);
   }
+
+  double LinearWorkflow::get_focal_val() const { return focal_; }
+  double LinearWorkflow::get_baseline_val() const { return baseline_; }
 
 } // namespace kbd

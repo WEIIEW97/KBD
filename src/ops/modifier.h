@@ -30,41 +30,56 @@
 
 namespace kbd {
   namespace ops {
+
     template <typename Derived>
-    ndArray<Derived>
+    auto safe_divide(double numerator,
+                     const Eigen::ArrayBase<Derived>& denominator) {
+      // Using unaryExpr to safely divide with a lambda function
+      return denominator.unaryExpr([numerator](double denom) -> double {
+        return denom != 0
+                   ? numerator / denom
+                   : 0; // Return 0 or some other defined value if denom is 0
+      });
+    }
+
+    template <typename Derived>
+    ndArray<uint16_t>
     modify_linear(const ndArray<Derived>& m, double focal, double baseline,
                   const Eigen::Matrix<double, 5, 5>& param_matrix,
                   const std::array<int, 2>& disjoint_depth_range,
                   double compensate_dist, double scaling_factor) {
-      auto fb = focal * baseline;
+      double fb = focal * baseline;
       ndArray<double> out(m.rows(), m.cols());
       out.setZero();
 
-      auto lb = disjoint_depth_range[0];
-      auto ub = disjoint_depth_range[1];
+      double lb = static_cast<double>(disjoint_depth_range[0]);
+      double ub = static_cast<double>(disjoint_depth_range[1]);
 
-      auto mask0 = (m.array() >= 0) && (m.array() < lb - compensate_dist);
-      auto mask1 = (m.array() >= lb - compensate_dist) && (m.array() < lb);
-      auto mask2 = (m.array() >= lb) && (m.array() < ub);
-      auto mask3 = (m.array() >= ub) &&
-                   (m.array() < ub + compensate_dist * scaling_factor);
-      auto mask4 = (m.array() >= ub + compensate_dist * scaling_factor);
+      auto m_double = m.template cast<double>().array();
+      auto d_double = safe_divide(fb, m_double);
 
       out =
-          ((mask0).template cast<double>() * m).matrix() +
-          ((mask1).template cast<double>() *
-           (fb / (param_matrix(1, 3) * (fb / m.array()) + param_matrix(1, 4))))
-              .matrix() +
-          ((mask2).template cast<double>() *
-           (param_matrix(2, 0) * fb / ((fb / m.array()) + param_matrix(2, 1)) +
-            param_matrix(2, 2)))
-              .matrix() +
-          ((mask3).template cast<double>() *
-           (fb / (param_matrix(3, 3) * (fb / m.array()) + param_matrix(3, 4))))
-              .matrix() +
-          ((mask4).template cast<double>() * m).matrix();
+          (m_double >= 0 && m_double < lb - compensate_dist)
+              .select(m_double, 0.0) +
+          (m_double >= lb - compensate_dist && m_double < lb)
+              .select(fb / (param_matrix(1, 3) * d_double + param_matrix(1, 4)),
+                      0.0) +
+          (m_double >= lb && m_double < ub)
+              .select(param_matrix(2, 0) * fb /
+                              (d_double + param_matrix(2, 1)) +
+                          param_matrix(2, 2),
+                      0.0) +
+          (m_double >= ub && m_double < ub + compensate_dist * scaling_factor)
+              .select(fb / (param_matrix(3, 3) * d_double + param_matrix(3, 4)),
+                      0.0) +
+          (m_double >= ub + compensate_dist * scaling_factor)
+              .select(m_double, 0.0);
 
-      return out.cast<Derived>();
+      // Convert and clamp the final results to uint16_t using unaryExpr
+      auto clamp_cast = [](double v) {
+        return static_cast<uint16_t>(std::clamp(v, 0.0, 65535.0));
+      };
+      return out.unaryExpr(clamp_cast);
     }
 
     template <typename Derived>
@@ -72,24 +87,32 @@ namespace kbd {
         const std::string& path,
         const Eigen::Matrix<double, 5, 5>& params_matrix, double focal,
         double baseline, const std::array<int, 2>& disjoint_depth_range,
-        double compensate_dist, double scaling_factor, int H, int W) {
+        double compensate_dist, double scaling_factor, int H, int W,
+        const std::string& subfix) {
       auto folders = retrieve_folder_names(path);
-#ifdef USE_OPENMP
-#pragma omp parallel for
-#endif
+
       for (int k = 0; k < folders.size(); ++k) {
         const auto& folder = folders[k];
-        for (const auto& entry : fs::directory_iterator(folder)) {
-          auto p = entry.path();
+        auto full_path = path + "/" + folder + "/" + subfix;
+        // auto full_path = fs::path(path) / folder / subfix;
+        for (const auto& entry : fs::directory_iterator(full_path)) {
+          auto p = entry.path().string();
           auto raw = load_raw<uint16_t>(p, H, W);
           auto depth = modify_linear<uint16_t>(
               raw, focal, baseline, params_matrix, disjoint_depth_range,
               compensate_dist, scaling_factor);
-          write_binary(p.string(), depth);
+          write_binary(p, depth);
         }
       }
-      fmt::print("Transformating data done ...");
+      fmt::print("Transformating data done ...\n");
     }
 
+    void parallel_copy(const std::string& src, const std::string& dst,
+                       const Config& configs);
+    void parallel_transform(const std::string& path,
+                            const Eigen::Matrix<double, 5, 5>& params_matrix,
+                            double focal, double baseline,
+                            const Config& configs,
+                            const JointSmoothArguments& arguments);
   } // namespace ops
 } // namespace kbd

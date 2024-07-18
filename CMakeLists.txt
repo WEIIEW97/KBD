@@ -35,7 +35,7 @@ endif()
 
 add_executable(${PROJECT_NAME} 
         # main.cpp
-        test/test_eigen_io.cpp
+        test/test_main.cpp
         ${sources}
 )
 

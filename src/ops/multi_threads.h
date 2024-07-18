@@ -16,10 +16,8 @@
 
 #pragma once
 
-#include "../config.h"
 
 #include <vector>
-#include <filesystem>
 #include <thread>
 #include <future>
 #include <mutex>
@@ -29,7 +27,6 @@
 
 namespace kbd {
   namespace ops {
-    namespace fs = std::filesystem;
 
     class ThreadPool {
     public:
@@ -64,8 +61,5 @@ namespace kbd {
       std::condition_variable condition_;
       bool stop_;
     };
-
-    void parallel_copy(const std::string& src, const std::string& dst,
-                       const Config& configs);
   } // namespace ops
 } // namespace kbd

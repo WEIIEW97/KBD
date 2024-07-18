@@ -15,9 +15,6 @@
  */
 
 #include "multi_threads.h"
-#include "../utils.h"
-
-#include <fmt/core.h>
 
 namespace kbd {
   namespace ops {
@@ -52,31 +49,5 @@ namespace kbd {
       for (std::thread& worker : workers_)
         worker.join();
     }
-
-    void parallel_copy(const std::string& src, const std::string& dst,
-                       const Config& configs) {
-      auto subfix = configs.SUBFIX;
-      auto camparam_name = configs.CAMPARAM_NAME;
-
-      auto folders = retrieve_folder_names(src);
-      ThreadPool pool(std::thread::hardware_concurrency());
-
-      for (const auto& folder : folders) {
-        auto source_path = src + "/" + folder + "/" + subfix;
-        auto destination_path = dst + "/" + folder + "/" + subfix;
-        auto cam_source = src + "/" + folder + "/" + camparam_name;
-        auto cam_dest = dst + "/" + folder + "/" + camparam_name;
-
-        pool.enqueue(copy_files_in_directory, source_path, destination_path);
-        pool.enqueue(
-            [](const std::string& src, const std::string& dst) {
-              fs::copy(src, dst, fs::copy_options::overwrite_existing);
-            },
-            cam_source, cam_dest);
-      }
-
-      fmt::print("Copying done!\n");
-    }
-
   } // namespace ops
 } // namespace kbd

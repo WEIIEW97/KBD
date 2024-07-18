@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 #include "utils.h"
-#include "eigen_io.h"
 #include <filesystem>
 
 namespace kbd {

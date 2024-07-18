@@ -39,6 +39,8 @@ namespace kbd {
                Eigen::Matrix<double, 5, 5>>
     pivot();
     std::tuple<std::map<double, double>, double> eval(const Config& config);
+    double get_focal_val() const;
+    double get_baseline_val() const;
 
   private:
     double focal_, baseline_, cd_, sf_;
