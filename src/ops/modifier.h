@@ -18,7 +18,6 @@
 
 #include "../utils.h"
 #include "../array.h"
-#include "../eigen_io.h"
 
 #include <Eigen/Dense>
 #include <array>
@@ -101,7 +100,7 @@ namespace kbd {
           auto depth = modify_linear<uint16_t>(
               raw, focal, baseline, params_matrix, disjoint_depth_range,
               compensate_dist, scaling_factor);
-          write_binary(p, depth);
+          save_raw<uint16_t>(p, depth);
         }
       }
       fmt::print("Transformating data done ...\n");

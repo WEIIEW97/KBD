@@ -31,6 +31,7 @@ namespace kbd {
     int W = 640;
     float EPSILON = 1e-6;
     int EVAL_STAGE_STEPS = 200;
+    double EVAL_WARNING_RATE = 0.5f;
 
     std::vector<int> ANCHOR_POINT = {H / 2, W / 2};
 
@@ -43,6 +44,7 @@ namespace kbd {
     std::string GT_ERROR_NAME = "absolute_error";
     std::string FOCAL_NAME = "focal";
     std::string BASELINE_NAME = "baseline";
+    std::string BASE_OUTPUT_JSON_FILE_NAME_PREFIX = "segmented_linear_KBD_params";
     std::map<std::string, std::string> MAPPED_PAIR_DICT = {
         {"距离(mm)", "actual_depth"},
         {"相机焦距", "focal"},

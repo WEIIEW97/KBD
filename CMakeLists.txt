@@ -12,6 +12,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(Arrow REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(Boost REQUIRED COMPONENTS program_options)
 
 # Platform-specific settings
 if(MSVC)
@@ -43,6 +44,7 @@ target_include_directories(
         ${PROJECT_NAME}
         PRIVATE
         ${EIGEN3_INCLUDE_DIR}
+        ${Boost_INCLUDE_DIRS}
         ${fmt_INCLUDE_DIRS}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${ARROW_INCLUDE_DIRS}
@@ -58,6 +60,7 @@ if(OpenMP_CXX_FOUND AND NOT APPLE)
                 Arrow::arrow_shared
                 fmt::fmt
                 ${CERES_LIBRARIES}
+                ${Boost_PROGRAM_OPTIONS_LIBRARY}
                 OpenMP::OpenMP_CXX
         )
 else()
@@ -68,6 +71,7 @@ else()
                 Arrow::arrow_shared
                 fmt::fmt
                 ${CERES_LIBRARIES}
+                ${Boost_PROGRAM_OPTIONS_LIBRARY}
         )  
         endif()
 

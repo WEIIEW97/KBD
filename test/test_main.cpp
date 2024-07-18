@@ -21,8 +21,9 @@
 #include "../src/utils.h"
 #include "../src/ops/modifier.h"
 #include <iostream>
-#include <memory>
 #include <filesystem>
+#include <fmt/core.h>
+#include <fmt/color.h>
 
 namespace fs = std::filesystem;
 
@@ -55,6 +56,16 @@ int main() {
   workflow.preprocessing(file_path, csv_path, default_configs, args);
   auto [eval_res, acceptance] = workflow.eval(default_configs);
   std::cout << "acceptance rate: " << acceptance << std::endl;
+  if (acceptance < default_configs.EVAL_WARNING_RATE) {
+    fmt::print(fmt::fg(fmt::color::red), "*********** WARNING *************\n");
+    fmt::print(fmt::fg(fmt::color::red),
+               "Please be really cautious since the acceptance rate is {},\n",
+               acceptance);
+    fmt::print(fmt::fg(fmt::color::red),
+               "This may not be the ideal data to be tackled with.\n");
+    fmt::print(fmt::fg(fmt::color::red),
+               "*********** END OF WARNING *************\n");
+  }
 
   workflow.optimize();
   workflow.extend_matrix();
