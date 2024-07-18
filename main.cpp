@@ -51,6 +51,11 @@ int main(int argc, char** argv) {
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
+  if (file_path.empty() || csv_path.empty() || transformed_file_path.empty()) {
+    fmt::print("You have to make sure arguments are not empty!\n");
+    return 1;
+  }
+
   if (vm.count("help")) {
     std::cout << desc << std::endl;
     return 1;

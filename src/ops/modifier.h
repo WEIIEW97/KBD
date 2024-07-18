@@ -105,7 +105,7 @@ namespace kbd {
       }
       fmt::print("Transformating data done ...\n");
     }
-
+    
     void parallel_copy(const std::string& src, const std::string& dst,
                        const Config& configs);
     void parallel_transform(const std::string& path,

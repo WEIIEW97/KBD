@@ -19,6 +19,7 @@
 
 namespace kbd {
   namespace ops {
+
     void parallel_copy(const std::string& src, const std::string& dst,
                        const Config& configs) {
       auto subfix = configs.SUBFIX;
@@ -78,8 +79,14 @@ namespace kbd {
 #endif
       for (const auto& folder : folders) {
         auto full_path = fs::path(path) / folder / subfix;
-        pool.enqueue(linear_transform_kernel, full_path, h, w, focal, baseline,
-                     params_matrix, cd, sf, range);
+        // pool.enqueue(linear_transform_kernel, full_path, h, w, focal,
+        // baseline,
+        //              params_matrix, cd, sf, range);
+        pool.enqueue([=, &params_matrix] { // Capture by value, but
+                                           // params_matrix by reference
+          linear_transform_kernel(full_path.string(), h, w, focal, baseline,
+                                  params_matrix, cd, sf, range);
+        });
       }
       fmt::print("Transformating data done ...\n");
     }
