@@ -44,7 +44,8 @@ namespace kbd {
     std::string GT_ERROR_NAME = "absolute_error";
     std::string FOCAL_NAME = "focal";
     std::string BASELINE_NAME = "baseline";
-    std::string BASE_OUTPUT_JSON_FILE_NAME_PREFIX = "segmented_linear_KBD_params";
+    std::string BASE_OUTPUT_JSON_FILE_NAME_PREFIX =
+        "segmented_linear_KBD_params";
     std::map<std::string, std::string> MAPPED_PAIR_DICT = {
         {"距离(mm)", "actual_depth"},
         {"相机焦距", "focal"},

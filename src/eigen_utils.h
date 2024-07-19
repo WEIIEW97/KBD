@@ -38,7 +38,6 @@ namespace kbd {
     return masked_data;
   }
 
-
   template <typename DataType, typename MaskType>
   Eigen::Matrix<DataType, Eigen::Dynamic, 1>
   mask_out_vector(const Eigen::Matrix<DataType, Eigen::Dynamic, 1>& arr,

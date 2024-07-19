@@ -20,7 +20,9 @@
 
 namespace kbd {
   template <typename T>
-  Eigen::Array<T, Eigen::Dynamic, 1> basic_model(const Eigen::Array<T, Eigen::Dynamic, 1>& disp, T focal, T baseline, T k, T delta, T b) {
+  Eigen::Array<T, Eigen::Dynamic, 1>
+  basic_model(const Eigen::Array<T, Eigen::Dynamic, 1>& disp, T focal,
+              T baseline, T k, T delta, T b) {
     return k * focal * baseline / (disp + delta) + b;
   }
 } // namespace kbd

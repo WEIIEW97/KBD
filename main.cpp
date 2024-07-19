@@ -76,11 +76,13 @@ int main(int argc, char** argv) {
   kbd::Config default_configs = kbd::Config();
   kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
 
+  args.apply_global = apply_global;
+
   kbd::LinearWorkflow workflow;
 
   workflow.preprocessing(file_path, csv_path, default_configs, args);
   auto [eval_res, acceptance] = workflow.eval(default_configs);
-  
+
   if (acceptance < default_configs.EVAL_WARNING_RATE) {
     fmt::print(fmt::fg(fmt::color::red), "*********** WARNING *************\n");
     fmt::print(fmt::fg(fmt::color::red),
@@ -94,8 +96,6 @@ int main(int argc, char** argv) {
 
   workflow.optimize();
   workflow.extend_matrix();
-  workflow.pivot();
-
   auto [disp_nodes, param_matrix] = workflow.pivot();
 
   auto global_judge = (apply_global ? "global" : "local");
