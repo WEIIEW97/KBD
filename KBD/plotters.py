@@ -666,6 +666,7 @@ def plot_linear2(
     disjoint_depth_range,
     compensate_dist,
     scaling_factor,
+    apply_global=False,
     save_path=None,
 ):
     linear_model, optimization_result, linear_model2 = res
@@ -726,8 +727,17 @@ def plot_linear2(
         pred4 = gt[mask4]
         residual4 = pred4 - filtered_depth4
 
-    if save_path is not None:
-        LINEAR_COMMON = "linear_"
+    if save_path is not None and not apply_global:
+        LINEAR_COMMON = "linear_local_"
+        comp_path = os.path.join(save_path, LINEAR_COMMON + OUT_FIG_COMP_FILE_NAME)
+        residual_path = os.path.join(
+            save_path, LINEAR_COMMON + OUT_FIG_RESIDUAL_FILE_NAME
+        )
+        error_rate_path = os.path.join(
+            save_path, LINEAR_COMMON + OUT_FIG_ERROR_RATE_FILE_NAME
+        )
+    elif save_path is not None and apply_global:
+        LINEAR_COMMON = "linear_global_"
         comp_path = os.path.join(save_path, LINEAR_COMMON + OUT_FIG_COMP_FILE_NAME)
         residual_path = os.path.join(
             save_path, LINEAR_COMMON + OUT_FIG_RESIDUAL_FILE_NAME

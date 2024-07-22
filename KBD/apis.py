@@ -225,6 +225,7 @@ def generate_parameters_linear(
     disjoint_depth_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
+    apply_global = False,
     plot: bool = False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
@@ -241,6 +242,7 @@ def generate_parameters_linear(
         disjoint_depth_range,
         compensate_dist,
         scaling_factor,
+        apply_global=apply_global,
         apply_weights=False,
         apply_l2=False,
     )
@@ -262,6 +264,7 @@ def generate_parameters_linear(
             disjoint_depth_range,
             compensate_dist=compensate_dist,
             scaling_factor=scaling_factor,
+            apply_global=apply_global,
             save_path=save_path,
         )
 
