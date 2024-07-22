@@ -16,6 +16,9 @@ def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:
 def model(disp, focal, baseline, k, delta, b):
     return k * focal * baseline / (disp + delta) + b
 
+def reverse_z(z, k, delta, b, fb):
+    return 1/(((k/(z-b))-delta/fb))
+
 
 def model_kb(x, x_hat):
 
