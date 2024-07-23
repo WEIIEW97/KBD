@@ -145,9 +145,9 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
     total_bins = len(eval_res)
     accept = 0
     for k, v in eval_res.items():
-        if k <= 1000 and v < 0.01:
+        if k <= 1000 and v < 0.02:
             accept += 1
-        if k <= 2000 and v < 0.02:
+        elif k <= 2000 and v < 0.04:
             accept += 1
 
     acceptance = accept / total_bins
@@ -514,22 +514,28 @@ def modify_linear(
 
 
 if __name__ == "__main__":
-    cwd = os.getcwd()
-
+    # cwd = os.getcwd()
+    cwd = "D:/william/data/KBD"
     # please make adjustments to them accordingly
     compensate_dist = 400
     scaling_factor = 10
     disjoint_depth_range = [600, 3000]
-    camera_type = "N09ASH24DH0050"
-    table_name = "depthquality_2024-07-09.xlsx"
+    camera_type = "N09ALC247H0048"
+    table_name = "depthquality_2024-07-21.xlsx"
     apply_global = False
     global_judge = "global" if apply_global else "local"
 
     print(f"processing {camera_type} now with {table_name} ...")
-    root_dir = f"{cwd}/data/{camera_type}/image_data"
-    copy_dir = f"{cwd}/data/{camera_type}/image_data_transformed_linear_{global_judge}"
-    save_dir = f"{cwd}/data/{camera_type}"
-    tablepath = f"{cwd}/data/{camera_type}/{table_name}"
+    # root_dir = f"{cwd}/data/{camera_type}/image_data"
+    # copy_dir = f"{cwd}/data/{camera_type}/image_data_transformed_linear_{global_judge}"
+    # save_dir = f"{cwd}/data/{camera_type}"
+    # tablepath = f"{cwd}/data/{camera_type}/{table_name}"
+    # save_params_path = save_dir + f"/segmented_linear_KBD_params_{global_judge}.json"
+
+    root_dir = f"{cwd}/{camera_type}/image_data"
+    copy_dir = f"{cwd}/{camera_type}/image_data_transformed_linear_{global_judge}"
+    save_dir = f"{cwd}/{camera_type}"
+    tablepath = f"{cwd}/{camera_type}/{table_name}"
     save_params_path = save_dir + f"/segmented_linear_KBD_params_{global_judge}.json"
 
     eval_res, acceptance_rate = eval(root_dir, tablepath)

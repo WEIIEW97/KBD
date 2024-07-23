@@ -9,8 +9,13 @@ goto :eof
 :: Handling command line arguments
 set "mode=single"
 set "use_global=false"
-set "root_dir=C:\Users\williamwei\Codes\KBD\data"
+set "root_dir=D:\william\data\KBD"
 set "log_file=%root_dir%\logfile.log"
+
+if not exist "%root_dir%" (
+    call :log "%root_dir% does not exist"
+    goto end_script
+)
 
 :parse_args
 if "%1"=="" goto run
@@ -21,9 +26,19 @@ exit /b 1
 
 :run
 if "%mode%"=="multiple" (
+    call :log "Starting in multiple directory mode"
+    if not exist "%root_dir%\*" (
+        call :log "No directories found in the specified root directory"
+        goto :eof
+    )
     for /d %%d in ("%root_dir%\*") do (
-        call :log "Processing directory %%d with global flag: %use_global%"
-        call :process_directory "%%d"
+        call :log "Found directory: %%d"
+        if exist "%%d\*" (
+            call :log "Processing directory %%d with global flag: %use_global%"
+            call :process_directory "%%d"
+        ) else (
+            call :log "Directory %%d is empty or inaccessible"
+        )
     )
 ) else (
     set "specific_dir=%root_dir%\N09ASH24DH0050"
