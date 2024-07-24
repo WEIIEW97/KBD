@@ -205,6 +205,8 @@ class JointLinearSmoothingOptimizer:
             y2 = np.array([x_hat_min, after_x])
             lm2.fit(x2.reshape(-1, 1), y2)
 
+            self.params = (lm1, kbd_result, lm2)
+
             return lm1, kbd_result, lm2
 
         return

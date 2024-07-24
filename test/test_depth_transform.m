@@ -4,20 +4,20 @@ function  test_depth_transform()
 h=480;
 w=640;
 
-before_path = "/Users/williamwei/Data/KBD/N09ALC247H0070/image_data/1500_N09ALC247H0070_2024_07_21_23_12_08/DEPTH/raw/Depth-2024-07-21-23-12-08-866-1-001048-1721574728236050.raw";
-after_path = "/Users/williamwei/Data/KBD/N09ALC247H0070/image_data_l/1500_N09ALC247H0070_2024_07_21_23_12_08/DEPTH/raw/Depth-2024-07-21-23-12-08-866-1-001048-1721574728236050.raw";
+after_path = "D:\william\data\KBD\0723\N09ALC247H0116\image_data_transformed_linear_local_scale1.6\1000_N09ALC247H0116_2024_07_23_20_44_30\DEPTH\raw\Depth-2024-07-23-20-44-31-022-1-005654-1721738670329147.raw";
+before_path = "D:\william\data\KBD\0723\N09ALC247H0116\image_data\1000_N09ALC247H0116_2024_07_23_20_44_30\DEPTH\raw\Depth-2024-07-23-20-44-31-022-1-005654-1721738670329147.raw";
 
 before = load_raw(before_path, h, w);
 after = load_raw(after_path, h, w);
 % Display the images
 figure(1);
-imagesc(before, [1200, 1800]);
+imagesc(before, [800, 1200]);
 colormap('default'); % You can choose any appropriate colormap
 colorbar;
 title('Before');
 
 figure(2);
-imagesc(after, [1200, 1800]);
+imagesc(after, [800, 1200]);
 colormap('default');
 colorbar;
 title('After');

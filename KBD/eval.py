@@ -5,9 +5,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from KBD.models import linear_KBD_piecewise_func
 from .constants import AVG_DIST_NAME, GT_DIST_NAME, GT_ERROR_NAME, MAPPED_PAIR_DICT
+from .core import modify_linear_vectorize2
 from .helpers import preprocessing
+
+from .models import linear_KBD_piecewise_func
 
 
 def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
@@ -21,7 +23,6 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
         dt = df[(df["actual_depth"] <= s) & (df["actual_depth"] > s - stage)]
         mape = np.mean(np.abs(dt["absolute_error_rate"]))
         eval_res[s] = mape
-
     total_bins = len(eval_res)
     accept = 0
     for k, v in eval_res.items():
@@ -29,9 +30,51 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
             accept += 1
         elif k <= 2000 and v < 0.04:
             accept += 1
-
     acceptance = accept / total_bins
     return eval_res, acceptance
+
+
+def pass_or_not(path, table_path, pair_dict=MAPPED_PAIR_DICT):
+    df, _, _ = preprocessing(path, table_path, pair_dict)
+    df["absolute_error_rate"] = df[GT_ERROR_NAME] / df[GT_DIST_NAME]
+    metric_dist = [300, 500, 600, 1000, 1500, 2000]
+
+    for metric in metric_dist:
+        quali = df[df[GT_DIST_NAME] == metric]["absolute_error_rate"]
+
+        if metric in (300, 500, 600, 1000):
+            if not (quali < 0.2).all():
+                return False
+        elif metric in (1500, 2000):
+            if not (quali < 0.4).all():
+                return False
+    return True
+
+
+def evaluate_target(
+    focal,
+    baseline,
+    param_matrix,
+    disjoint_depth_range,
+    compensate_dist,
+    scaling_factor,
+    z=[300, 500, 600, 1000, 1500, 2000],
+):
+    z_array = np.array(z)
+    d_array = focal * baseline / z_array
+    z_after = modify_linear_vectorize2(
+        d_array,
+        focal,
+        baseline,
+        param_matrix,
+        disjoint_depth_range,
+        compensate_dist,
+        scaling_factor,
+    )
+    z_error_rate = np.abs((z_after - z_array)/z_array)
+    # print(f"z before is {z_array}")
+    # print(f"z after is {z_after}")
+    return mean_squared_error(z_array, z_after), z_error_rate
 
 
 def _is_monotonically_increasing(lst):

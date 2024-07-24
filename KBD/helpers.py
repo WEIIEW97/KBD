@@ -163,6 +163,7 @@ def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
     focal = df[FOCAL_NAME].iloc[0]  # assume focal value is the same
     baseline = df[BASLINE_NAME].iloc[0]  # assume basline value is the same
 
+    focal *= 1.6 # very dirty hack
     df[AVG_DISP_NAME] = focal * baseline / df[AVG_DIST_NAME]
 
     return focal, baseline

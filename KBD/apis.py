@@ -4,6 +4,7 @@ from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
 from .constants import (
@@ -22,12 +23,8 @@ from .constants import (
     UINT16_MIN,
     W,
 )
-from .core import (
-    modify,
-    modify_linear,
-    modify_linear_vectorize,
-    modify_linear_vectorize2,
-)
+from .core import modify, modify_linear, modify_linear_vectorize2
+from .eval import evaluate_target
 
 from .helpers import preprocessing, retrive_file_names, retrive_folder_names
 from .kernels import gaussian_kernel, laplacian_kernel, polynomial_kernel_n2
@@ -81,7 +78,6 @@ def generate_parameters(
         error_rate_path = os.path.join(
             save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
         )
-
     k_ = float(np.float64(res[0]))
     delta_ = float(np.float64(res[1]))
     b_ = float(np.float64(res[2]))
@@ -103,7 +99,6 @@ def generate_parameters(
         plot_comparison(
             actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
         )
-
     return k_, delta_, b_, focal, baseline
 
 
@@ -133,6 +128,7 @@ def generate_parameters_trf(
     )
 
     # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
+
     params_dict = {
         "k": k_,
         "delta": delta_,
@@ -151,7 +147,6 @@ def generate_parameters_trf(
         plot_comparison(
             actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
         )
-
     return k_, delta_, b_, focal, baseline
 
 
@@ -170,7 +165,6 @@ def generate_parameters_adv(path: str, table_path: str, save_path: str, method="
         res = model_kbd_v3(actual_depth, avg_50x50_anchor_disp, focal, baseline)
     elif method == "bayes":
         res = model_kbd_bayes(actual_depth, avg_50x50_anchor_disp, focal, baseline)
-
     common_prefix = f"{method}_"
     param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
     comp_path = os.path.join(save_path, common_prefix + OUT_FIG_COMP_FILE_NAME)
@@ -180,6 +174,7 @@ def generate_parameters_adv(path: str, table_path: str, save_path: str, method="
     )
 
     # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
+
     if method == "evo":
         k_ = float(np.float64(res.x[0]))
         delta_ = float(np.float64(res.x[1]))
@@ -188,7 +183,6 @@ def generate_parameters_adv(path: str, table_path: str, save_path: str, method="
         k_ = float(np.float64(res[0]))
         delta_ = float(np.float64(res[1]))
         b_ = float(np.float64(res[2]))
-
     params_dict = {
         "k": k_,
         "delta": delta_,
@@ -218,6 +212,116 @@ def generate_parameters_adv(path: str, table_path: str, save_path: str, method="
     return k_, delta_, b_, focal, baseline
 
 
+def construct_param_matrix(linear_model1, kbd_params, linear_model2):
+    k_, delta_, b_ = kbd_params
+    params_matrix = np.zeros((5, 5), dtype=np.float32)
+    params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
+    params_matrix[1, :] = np.array(
+        [1, 0, 0, linear_model1.coef_[0], linear_model1.intercept_]
+    )
+    params_matrix[2, :] = np.array([k_, delta_, b_, 1, 0])
+    params_matrix[3, :] = np.array(
+        [1, 0, 0, linear_model2.coef_[0], linear_model2.intercept_]
+    )
+    params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
+    return params_matrix
+
+
+def generate_parameters_linear_search(
+    path: str,
+    table_path: str,
+    save_path: str,
+    search_range: tuple,
+    compensate_dist: float = 200,
+    scaling_factor: float = 10,
+    apply_global=False,
+    plot: bool = False,     
+):
+    df, focal, baseline = preprocessing(path=path, table_path=table_path)
+
+    actual_depth = df[GT_DIST_NAME].values
+    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+    error = df[GT_ERROR_NAME].values
+
+    STEP = 50
+
+    lowest_mse = np.inf
+    ranges = []
+    pms = []
+    lm1s = []
+    kbds = []
+    lm2s = []
+    mses = []
+    z_error_rates = []
+    for start in range(search_range[0], search_range[1]+STEP, STEP):
+        disjoint_depth_range = [start, 3000]
+        jlm = JointLinearSmoothingOptimizer(
+            actual_depth,
+            avg_50x50_anchor_disp,
+            focal,
+            baseline,
+            disjoint_depth_range,
+            compensate_dist,
+            scaling_factor,
+            apply_global=apply_global,
+            apply_weights=False,
+            apply_l2=False,
+        )
+
+        lm1, kbd, lm2 = jlm.run()
+        pm = construct_param_matrix(lm1, kbd, lm2)
+        mse, z_error_rate = evaluate_target(focal, baseline, pm, disjoint_depth_range, compensate_dist, scaling_factor)
+        print(f"z_error_rate is {z_error_rate}")
+        ranges.append(disjoint_depth_range)
+        pms.append(pm)
+        lm1s.append(lm1)
+        kbds.append(kbd)
+        lm2s.append(lm2s)
+        mses.append(mse)
+        z_error_rates.append(z_error_rate)
+    
+    # After collecting all results, analyze them based on the given conditions
+    for i in range(len(mses)):
+        z_er = z_error_rates[i]
+        if z_er[0:4].all() < 0.2 and z_er[4:].all() < 0.4:
+            if mses[i] < lowest_mse:
+                lowest_mse = mses[i]
+                best_range = ranges[i]
+                best_pm = pms[i]
+                best_lm1 = lm1s[i]
+                best_kbd = kbds[i]
+                best_lm2 = lm2s[i]
+
+    # If no suitable mse is found, pick the smallest overall
+    if lowest_mse == np.inf:
+        lowest_mse = min(mses)
+        index = mses.index(lowest_mse)
+        best_range = ranges[index]
+        best_pm = pms[index]
+        best_lm1 = lm1s[index]
+        best_kbd = kbds[index]
+        best_lm2 = lm2s[index]
+
+    print("Best ranges:", best_range)
+
+    if plot:
+        plot_linear2(
+            actual_depth,
+            avg_50x50_anchor_disp,
+            error,
+            focal,
+            baseline,
+            (best_lm1, best_kbd, best_lm2),
+            best_range,
+            compensate_dist=compensate_dist,
+            scaling_factor=scaling_factor,
+            apply_global=apply_global,
+            save_path=save_path,
+        )
+
+    return best_pm, focal, baseline
+
+
 def generate_parameters_linear(
     path: str,
     table_path: str,
@@ -225,7 +329,7 @@ def generate_parameters_linear(
     disjoint_depth_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
-    apply_global = False,
+    apply_global=False,
     plot: bool = False,
 ):
     df, focal, baseline = preprocessing(path=path, table_path=table_path)
@@ -267,7 +371,6 @@ def generate_parameters_linear(
             apply_global=apply_global,
             save_path=save_path,
         )
-
     params_matrix = np.zeros((5, 5), dtype=np.float32)
     params_matrix[0, :] = np.array([1, 0, 0, 1, 0])
     params_matrix[1, :] = np.array(
@@ -340,9 +443,7 @@ def generate_parameters_kernel(
             plot_comparison(
                 actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
             )
-
         return k, b, mu, sigma, focal, baseline
-
     if method == "polynomial":
         k = float(np.float64(res.x[0]))
         b_ = float(np.float64(res.x[1]))
@@ -379,9 +480,7 @@ def generate_parameters_kernel(
             plot_comparison(
                 actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
             )
-
         return k, b_, a, b, c, focal, baseline
-
     if method == "laplacian":
         k = float(np.float64(res.x[0]))
         b = float(np.float64(res.x[1]))
@@ -415,7 +514,6 @@ def generate_parameters_kernel(
             plot_comparison(
                 actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
             )
-
         return k, b, mu, sigma, focal, baseline
 
 
@@ -438,11 +536,11 @@ def apply_transformation(
             disp = depth2disp(raw, focal, baseline)
             depth = modify(disp, H, W, k, delta, b, focal, baseline, epislon)
             # make sure raw value is within range(0, 65535)
+
             depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
             depth = depth.astype(np.uint16)
             with open(full_path, "wb") as f:
                 depth.tofile(f)
-
     print("Transformating data done ...")
 
 
@@ -487,7 +585,6 @@ def apply_transformation_parallel(
 
     with ThreadPoolExecutor() as executor:
         list(tqdm(executor.map(process_folder, folders), total=len(folders)))
-
     print("Transformation data done ...")
 
 
@@ -519,11 +616,11 @@ def apply_transformation_linear(
                 scaling_factor,
             )
             # make sure raw value is within range(0, 65535)
+
             depth = np.clip(depth, UINT16_MIN, UINT16_MAX)
             depth = depth.astype(np.uint16)
             with open(full_path, "wb") as f:
                 depth.tofile(f)
-
     print("Transformating data done ...")
 
 
@@ -570,6 +667,7 @@ def transformer_linear_vectorize_impl(
     raw = load_raw(full_path, H, W).astype(np.float64)
     disp_ = np.divide(focal * baseline, raw, out=np.zeros_like(raw), where=(raw != 0))
     # disp_ = np.where(raw!=0, focal*baseline/raw, 0)
+
     depth = modify_linear_vectorize2(
         disp_,
         focal,
@@ -617,10 +715,8 @@ def apply_transformation_linear_parallel(
                         scaling_factor,
                     )
                 )
-
         for future in tqdm(as_completed(tasks), total=len(tasks)):
             future.result()  # Ensure any exceptions are raised
-
     print("Transforming data done...")
 
 
@@ -656,8 +752,6 @@ def apply_transformation_linear_vectorize_parallel(
                         scaling_factor,
                     )
                 )
-
         for future in tqdm(as_completed(tasks), total=len(tasks)):
             future.result()  # Ensure any exceptions are raised
-
     print("Transforming data done...")
