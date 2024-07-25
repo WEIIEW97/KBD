@@ -181,7 +181,7 @@ namespace kbd {
     return std::make_tuple(eval_res, acceptance);
   }
 
-  double LinearWorkflow::get_focal_val() const { return focal_; }
-  double LinearWorkflow::get_baseline_val() const { return baseline_; }
+  double LinearWorkflow::get_focal_val() const { return this->focal_; }
+  double LinearWorkflow::get_baseline_val() const { return this->baseline_; }
 
 } // namespace kbd
