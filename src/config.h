@@ -56,7 +56,8 @@ namespace kbd {
 
   struct JointSmoothArguments {
     std::array<int, 2> disjoint_depth_range = {600, 3000};
-    std::array<int, 6> metric_point = {300, 500, 600, 1000, 1500, 2000};
+    std::array<int, 6> metric_points = {300, 500, 600, 1000, 1500, 2000};
+    std::array<double, 6> thresholds = {0.2, 0.2, 0.2, 0.2, 0.4, 0.4};
     double compensate_dist = 400;
     double scaling_factor = 10;
     bool apply_global = false;
