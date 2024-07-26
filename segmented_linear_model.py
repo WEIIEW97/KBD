@@ -722,8 +722,8 @@ if __name__ == "__main__":
 
     compensate_dist = 400
     scaling_factor = 10
-    disjoint_depth_range = [1100, 3000]
-    camera_type = "N09ALC247H0116"
+    disjoint_depth_range = [600, 3000]
+    camera_type = "N09ALC247H0046"
     table_name = "depthquality_2024-07-23.xlsx"
     apply_global = False
     global_judge = "global" if apply_global else "local"

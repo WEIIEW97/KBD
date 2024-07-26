@@ -20,7 +20,6 @@
 #include "utils.h"
 #include <arrow/api.h>
 #include <arrow/compute/api.h>
-
 namespace kbd {
 
   void LinearWorkflow::preprocessing(const std::string& file_path,
@@ -72,7 +71,7 @@ namespace kbd {
 
   void
   LinearWorkflow::optimize_and_search(const std::array<int, 2>& search_range) {
-    auto lowest_mse = MAXFLOAT;
+    auto lowest_mse = DBL_MAX;
     auto sz = (search_range[1] - search_range[0]) / step_ + 1;
     std::vector<Eigen::Matrix<double, 5, 5>> ranges(sz);
     std::vector<Eigen::Vector2d> lm1s(sz);
@@ -260,7 +259,7 @@ namespace kbd {
     //         return false;
     //     }
     // }
-    // return true;
+    return true;
   }
 
   void LinearWorkflow::evaluate_target(

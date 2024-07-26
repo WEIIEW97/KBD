@@ -65,7 +65,7 @@ if __name__ == "__main__":
     # ]
     root_dir = "D:/william/data/KBD/0723"
     camera_types = [f for f in os.listdir(root_dir)]
-    disjoint_depth_ranges = [1100, 3000]
+    disjoint_depth_ranges = [600, 3000]
 
     # for type, table_name, range_ in zip(
     #     camera_types, table_names, disjoint_depth_ranges
@@ -77,8 +77,8 @@ if __name__ == "__main__":
         if apply_global:
             continue
         for camera_type in camera_types:
-            # if camera_type != "N09ALC247H0116":
-            #     continue
+            if camera_type != "N09ALC247H0046":
+                continue
             base_path = os.path.join(root_dir, camera_type)
             file_path = os.path.join(base_path, "image_data")
             table_name = [f for f in os.listdir(base_path) if f.endswith('.xlsx') and os.path.isfile(os.path.join(base_path, f))][0]
@@ -89,27 +89,27 @@ if __name__ == "__main__":
             # sampling_strategy_criterion(root_dir, tablepath, tablepath.replace("depthquality","sampling-criterion"))
             eval_res, acceptance_rate = eval(file_path, table_path)
             print(f"acceptance rate is {acceptance_rate}")
-            # matrix, focal, baseline = generate_parameters_linear(
-            #     path=file_path,
-            #     table_path=table_path,
-            #     save_path=base_path,
-            #     disjoint_depth_range=disjoint_depth_ranges,
-            #     compensate_dist=compensate_dist,
-            #     scaling_factor=scaling_factor,
-            #     apply_global=apply_global,
-            #     plot=True,
-            # )
-
-            matrix, focal, baseline = generate_parameters_linear_search(
+            matrix, focal, baseline = generate_parameters_linear(
                 path=file_path,
                 table_path=table_path,
                 save_path=base_path,
-                search_range=(600, 1100),
+                disjoint_depth_range=disjoint_depth_ranges,
                 compensate_dist=compensate_dist,
                 scaling_factor=scaling_factor,
                 apply_global=apply_global,
                 plot=True,
             )
+
+            # matrix, focal, baseline = generate_parameters_linear_search(
+            #     path=file_path,
+            #     table_path=table_path,
+            #     save_path=base_path,
+            #     search_range=(600, 1100),
+            #     compensate_dist=compensate_dist,
+            #     scaling_factor=scaling_factor,
+            #     apply_global=apply_global,
+            #     plot=True,
+            # )
         # k, delta, b, _, _ = generate_parameters(
         #     root_dir, tablepath, save_dir, plot=True
         # )

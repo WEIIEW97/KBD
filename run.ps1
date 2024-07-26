@@ -1,6 +1,6 @@
 # Set script parameters and default values
 param(
-    [string]$rootDir = "D:\william\data\KBD",
+    [string]$rootDir = "D:\william\data\KBD\0723",
     [switch]$multiple,
     [switch]$useGlobal
 )

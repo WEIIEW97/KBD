@@ -1,10 +1,7 @@
 import os
-from collections import OrderedDict
 from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
 from .constants import (
@@ -13,7 +10,6 @@ from .constants import (
     GT_DIST_NAME,
     GT_ERROR_NAME,
     H,
-    LINEAR_OUT_PARAMS_FILE_NAME,
     OUT_FIG_COMP_FILE_NAME,
     OUT_FIG_ERROR_RATE_FILE_NAME,
     OUT_FIG_RESIDUAL_FILE_NAME,
@@ -35,7 +31,7 @@ from .optimizers import (
     TrustRegionReflectiveOptimizer,
 )
 from .plotters import plot_comparison, plot_error_rate, plot_linear2, plot_residuals
-from .utils import depth2disp, get_linear_model_params, json_dumper, load_raw
+from .utils import depth2disp, json_dumper, load_raw
 
 
 def generate_parameters(

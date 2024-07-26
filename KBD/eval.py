@@ -1,11 +1,9 @@
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score
 
-from .constants import AVG_DIST_NAME, GT_DIST_NAME, GT_ERROR_NAME, MAPPED_PAIR_DICT
+from .constants import GT_DIST_NAME, GT_ERROR_NAME, MAPPED_PAIR_DICT
 from .core import modify_linear_vectorize2
 from .helpers import preprocessing
 

@@ -3,17 +3,9 @@ from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
-import yaml
 from sklearn.preprocessing import MinMaxScaler
 
 from .models import global_KBD_func, linear_KBD_piecewise_func
-
-
-def ordered_dict_representer(dumper, data):
-    return dumper.represent_dict(data.items())
-
-
-yaml.add_representer(OrderedDict, ordered_dict_representer)
 
 
 def read_excel(path: str) -> pd.DataFrame:
@@ -87,15 +79,9 @@ def json_to_numpy(data):
                 value["linear_model_params"]["beta"],
             ]
         )
-
     matrix = np.array(values).reshape(5, 5)
 
     return matrix
-
-
-def yaml_dumper(data, savepath):
-    with open(savepath, "w") as f:
-        yaml.dump(data, f, default_flow_style=None, sort_keys=False)
 
 
 def generate_linear_KBD_data(
@@ -134,7 +120,6 @@ def save_arrays_to_txt(savepath, arr1d, arr2d):
         f.write("\n\n")
         f.write("kbd_params:\n")
         np.savetxt(f, arr2d, fmt="%.16f")
-
     print(f"Arrays have been saved to {savepath}")
 
 
@@ -146,5 +131,4 @@ def save_arrays_to_json(savepath, arr1d, arr2d):
 
     with open(savepath, "w") as f:
         json.dump(params, f, indent=4)
-
     print(f"Arrays have been saved to {savepath}")

@@ -211,28 +211,6 @@ class JointLinearSmoothingOptimizer:
 
         return
     
-    # def run2(self):
-    #     kbd_result = self.segment()
-    #     if kbd_result is not None:
-    #         k_, delta_, b_ = kbd_result
-    #         x_min = np.min(self.kbd_x)
-    #         x_max = np.max(self.kbd_x)
-
-    #         y_hat_max = k_ * self.fb / (x_min + delta_) + b_
-    #         y_hat_min = k_ * self.fb / (x_max + delta_) + b_
-
-    #         eta = self.calculate_eta()
-    #         y_hat_max_prime = k_ * self.fb / (x_min + delta_ - eta) + b_
-    #         y_hat_min_prime = k_ * self.fb / (x_max + delta_ + eta) + b_
-
-    #         x_hat_min_prime = self.fb / y_hat_max_prime
-    #         x_hat_max_prime = self.fb / y_hat_min_prime
-
-    #         pre_y = y_hat_min - self.compensate_dist
-    #         after_y = y_hat_max + self.compensate_dist * self.scaling_factor
-
-
-
 class TrustRegionReflectiveOptimizer:
     def __init__(
         self,
