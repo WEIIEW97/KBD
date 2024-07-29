@@ -230,6 +230,7 @@ def generate_parameters_linear_search(
     search_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
+    engine="Nelder-Mead",
     apply_global=False,
     plot: bool = False,     
 ):
@@ -259,6 +260,7 @@ def generate_parameters_linear_search(
             disjoint_depth_range,
             compensate_dist,
             scaling_factor,
+            engine=engine,
             apply_global=apply_global,
             apply_weights=False,
             apply_l2=False,
@@ -287,6 +289,7 @@ def generate_parameters_linear_search(
                 best_lm1 = lm1s[i]
                 best_kbd = kbds[i]
                 best_lm2 = lm2s[i]
+                best_z_error_rate = z_error_rates[i]
 
     # If no suitable mse is found, pick the smallest overall
     if lowest_mse == np.inf:
@@ -297,9 +300,14 @@ def generate_parameters_linear_search(
         best_lm1 = lm1s[index]
         best_kbd = kbds[index]
         best_lm2 = lm2s[index]
-
+        best_z_error_rate = z_error_rates[index]
+    
+    print("="*50)
     print("Best ranges:", best_range)
-
+    print("*"*50)
+    print("Best z error rate: ", best_z_error_rate)
+    print("="*50)
+    
     if plot:
         plot_linear2(
             actual_depth,
@@ -315,7 +323,7 @@ def generate_parameters_linear_search(
             save_path=save_path,
         )
 
-    return best_pm, focal, baseline
+    return best_pm, best_range, best_z_error_rate, focal, baseline
 
 
 def generate_parameters_linear(

@@ -132,3 +132,13 @@ def save_arrays_to_json(savepath, arr1d, arr2d):
     with open(savepath, "w") as f:
         json.dump(params, f, indent=4)
     print(f"Arrays have been saved to {savepath}")
+
+
+def save_arrays_to_txt2(savepath, arr1, arr2):
+    with open(savepath, "w") as f:
+        f.write("optimal depth joint range is :\n")
+        np.savetxt(f, arr1, fmt="%d", delimiter=",")
+        f.write("\n")
+        f.write("z error rate according to designed distance : \n")
+        np.savetxt(f, arr2, fmt="%.16f", delimiter=",")
+    print(f"Arrays have been saved to {savepath}")

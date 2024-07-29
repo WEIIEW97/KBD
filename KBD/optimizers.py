@@ -1,9 +1,13 @@
 import numpy as np
-from scipy.optimize import minimize
-from sklearn.linear_model import LinearRegression
-from scipy.optimize import differential_evolution, least_squares, dual_annealing
 from bayes_opt import BayesianOptimization
 from pyswarm import pso
+from scipy.optimize import (
+    differential_evolution,
+    dual_annealing,
+    least_squares,
+    minimize,
+)
+from sklearn.linear_model import LinearRegression
 
 from .models import model
 
@@ -54,7 +58,6 @@ class NelderMeadOptimizer:
             )
         else:
             local_restric = 0
-
         if self.apply_l2:
             l2_reg = self.reg_lambda * np.sum(np.square(params))
         else:
@@ -92,7 +95,6 @@ class NelderMeadOptimizer:
                         / self.gt[self.gt < self.restriction_loc]
                     )
                 )
-
             print("MSE:", mse)
             if self.apply_weights:
                 print(f"Error less than {self.restriction_loc}:", local_restric)
@@ -113,20 +115,24 @@ class JointLinearSmoothingOptimizer:
         disjoint_depth_range,
         compensate_dist=200,
         scaling_factor=10,
+        engine="Nelder-Mead",
         local_restriction_weights=1000,
-        restriction_loc=1000,
         target_rate=0.02,
         apply_global=False,
         apply_weights=False,
         apply_l2=False,
         reg_lambda=0.001,
     ):
+        assert engine in (
+            "Nelder-Mead",
+            "Trust-Region",
+        ), f"optimize engine {engine} is not supported!"
         self.gt = gt
         self.est = est
         self.focal = focal
         self.baseline = baseline
         self.local_restriction_weights = local_restriction_weights
-        self.restriction_loc = restriction_loc
+        self.restriction_loc = disjoint_depth_range[0]
         self.target_rate = target_rate
         self.disjoint_depth_range = disjoint_depth_range
         self.compensate_dist = compensate_dist
@@ -137,12 +143,14 @@ class JointLinearSmoothingOptimizer:
         self.reg_lambda = reg_lambda
 
         self.fb = focal * baseline
+        self.engine = engine
 
         self.initial_params = [1.0, 0.01, 10]
         self.bounds = ([0, -10, -100], [10, 10, 100])
 
     def segment(self):
         # find the range to calculate KBD params within
+
         mask = np.where(
             (self.gt > self.disjoint_depth_range[0])
             & (self.gt < self.disjoint_depth_range[1])
@@ -154,18 +162,29 @@ class JointLinearSmoothingOptimizer:
             self.kbd_x = self.est
             self.kbd_y = self.gt
 
-        kbd_base_optimizer = NelderMeadOptimizer(
-            self.kbd_y,
-            self.kbd_x,
-            self.focal,
-            self.baseline,
-            self.local_restriction_weights,
-            self.restriction_loc,
-            self.target_rate,
-            self.apply_weights,
-            self.apply_l2,
-            self.reg_lambda,
-        )
+        kbd_base_optimizer = None
+
+        if self.engine == "Nelder-Mead":
+            kbd_base_optimizer = NelderMeadOptimizer(
+                self.kbd_y,
+                self.kbd_x,
+                self.focal,
+                self.baseline,
+                self.local_restriction_weights,
+                self.restriction_loc,
+                self.target_rate,
+                self.apply_weights,
+                self.apply_l2,
+                self.reg_lambda,
+            )
+        elif self.engine == "Trust-Region":
+            kbd_base_optimizer = TrustRegionReflectiveOptimizer(
+                self.kbd_y,
+                self.kbd_x,
+                self.focal,
+                self.baseline,
+                restriction_loc=self.restriction_loc,
+            )
 
         kbd_result = kbd_base_optimizer.run()
         return kbd_result
@@ -173,6 +192,7 @@ class JointLinearSmoothingOptimizer:
     def calculate_eta(self):
         lb = self.disjoint_depth_range[0]
         # lb shoud be restrictly greater than 1.000001
+
         eta = self.fb / [lb - 1] - self.fb / lb
         return eta
 
@@ -208,9 +228,9 @@ class JointLinearSmoothingOptimizer:
             self.params = (lm1, kbd_result, lm2)
 
             return lm1, kbd_result, lm2
-
         return
-    
+
+
 class TrustRegionReflectiveOptimizer:
     def __init__(
         self,
@@ -238,6 +258,7 @@ class TrustRegionReflectiveOptimizer:
         pred = model(self.est, self.focal, self.baseline, k, delta, b)
         residuals = pred - self.gt
         # mse = np.mean(residuals**2)
+
         local_restric = np.abs(
             (
                 pred[self.gt < self.restriction_loc]

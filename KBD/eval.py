@@ -70,8 +70,8 @@ def evaluate_target(
         scaling_factor,
     )
     z_error_rate = np.abs((z_after - z_array)/z_array)
-    # print(f"z before is {z_array}")
-    # print(f"z after is {z_after}")
+    print(f"z before is {z_array}")
+    print(f"z after is {z_after}")
     return mean_squared_error(z_array, z_after), z_error_rate
 
 
