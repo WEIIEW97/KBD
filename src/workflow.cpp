@@ -20,6 +20,7 @@
 #include "utils.h"
 #include <arrow/api.h>
 #include <arrow/compute/api.h>
+#include <cfloat>
 namespace kbd {
 
   void LinearWorkflow::preprocessing(const std::string& file_path,

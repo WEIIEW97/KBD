@@ -12,10 +12,12 @@ ANCHOR_POINT = [H // 2, W // 2]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
+GT_DISP_NAME = "actual_disp"
 MEDIAN_DIST_NAME = "median_depth_50x50_anchor"
 MEDIAN_DISP_NAME = "median_disp_50x50_anchor"
 GT_DIST_NAME = "actual_depth"
 GT_ERROR_NAME = "absolute_error"
+GT_DISP_ERROR_NAME = "absolute_disp_error"
 FOCAL_NAME = "focal"
 BASLINE_NAME = "baseline"
 

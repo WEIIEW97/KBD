@@ -3,6 +3,8 @@ from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
+import os
+from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
 
 from .models import global_KBD_func, linear_KBD_piecewise_func
@@ -114,6 +116,8 @@ def generate_global_KBD_data(
 
 
 def save_arrays_to_txt(savepath, arr1d, arr2d):
+    sp = Path(savepath)
+    os.makedirs(sp.parent, exist_ok=True)
     with open(savepath, "w") as f:
         f.write("disp_nodes:\n")
         np.savetxt(f, arr1d, fmt="%d", newline=" ")
@@ -124,17 +128,20 @@ def save_arrays_to_txt(savepath, arr1d, arr2d):
 
 
 def save_arrays_to_json(savepath, arr1d, arr2d):
+    sp = Path(savepath)
+    os.makedirs(sp.parent, exist_ok=True)
     arr1d_lst = arr1d.tolist()
     arr2d_lst = arr2d.tolist()
 
     params = {"disp_nodes": arr1d_lst, "kbd_params": arr2d_lst}
-
     with open(savepath, "w") as f:
         json.dump(params, f, indent=4)
     print(f"Arrays have been saved to {savepath}")
 
 
 def save_arrays_to_txt2(savepath, arr1, arr2):
+    sp = Path(savepath)
+    os.makedirs(sp.parent, exist_ok=True)
     with open(savepath, "w") as f:
         f.write("optimal depth joint range is :\n")
         np.savetxt(f, arr1, fmt="%d", delimiter=",")

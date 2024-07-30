@@ -4,21 +4,7 @@ from concurrent.futures import as_completed, ThreadPoolExecutor
 import numpy as np
 from tqdm import tqdm
 
-from .constants import (
-    AVG_DISP_NAME,
-    EPSILON,
-    GT_DIST_NAME,
-    GT_ERROR_NAME,
-    H,
-    OUT_FIG_COMP_FILE_NAME,
-    OUT_FIG_ERROR_RATE_FILE_NAME,
-    OUT_FIG_RESIDUAL_FILE_NAME,
-    OUT_PARAMS_FILE_NAME,
-    SUBFIX,
-    UINT16_MAX,
-    UINT16_MIN,
-    W,
-)
+from .constants import *
 from .core import modify, modify_linear, modify_linear_vectorize2
 from .eval import evaluate_target
 
@@ -274,7 +260,7 @@ def generate_parameters_linear_search(
         pms.append(pm)
         lm1s.append(lm1)
         kbds.append(kbd)
-        lm2s.append(lm2s)
+        lm2s.append(lm2)
         mses.append(mse)
         z_error_rates.append(z_error_rate)
     

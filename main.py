@@ -16,7 +16,6 @@ from KBD.constants import (
 )
 from KBD.eval import check_monotonicity, eval
 from KBD.helpers import parallel_copy, sampling_strategy_criterion
-from KBD.plotters import plot_linear2
 from KBD.utils import (
     generate_global_KBD_data,
     generate_linear_KBD_data,
@@ -33,19 +32,18 @@ if __name__ == "__main__":
     compensate_dist = 400
     scaling_factor = 10
 
-    root_dir = "D:/william/data/KBD/0726"
-    camera_types = [f for f in os.listdir(root_dir)]
+    root_dir = "/home/william/extdisk/data/KBD"
+    camera_types = [f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))]
     disjoint_depth_ranges = [600, 3000]
     engine = "Nelder-Mead"
 
     for apply_global in [True, False]:
         # if apply_global:
         #     continue
-
         for camera_type in camera_types:
             # if camera_type != "N09ALC247H0046":
             #     continue
-
+            print(f"begin to process {camera_type}")
             base_path = os.path.join(root_dir, camera_type)
             file_path = os.path.join(base_path, "image_data")
             table_name = [

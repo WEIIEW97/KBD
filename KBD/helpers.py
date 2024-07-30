@@ -15,6 +15,7 @@ from .constants import (
     BASLINE_NAME,
     FOCAL_NAME,
     GT_DIST_NAME,
+    GT_DISP_NAME,
     H,
     MAPPED_PAIR_DICT,
     MAPPED_PAIR_DICT_DEBUG,
@@ -22,6 +23,7 @@ from .constants import (
     MEDIAN_DIST_NAME,
     SUBFIX,
     W,
+    GT_DISP_ERROR_NAME,
 )
 from .utils import load_raw, read_table
 
@@ -165,7 +167,8 @@ def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
 
     focal *= 1.6 # very dirty hack
     df[AVG_DISP_NAME] = focal * baseline / df[AVG_DIST_NAME]
-
+    # df[GT_DISP_NAME] = focal * baseline / df[GT_DIST_NAME]
+    # df[GT_DISP_ERROR_NAME] = df[GT_DISP_NAME] - df[AVG_DISP_NAME]
     return focal, baseline
 
 
