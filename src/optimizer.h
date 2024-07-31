@@ -215,22 +215,22 @@ namespace kbd {
   class NelderMeadOptimizer {
   public:
     using Vector = Eigen::Matrix<T, Dimension, 1>;
-    using Matrix = Eigen::Matrix<T, Dimension, Dimension>;
+    using Matrix = Eigen::Matrix<T, Dimension, Eigen::Dynamic>;
 
     NelderMeadOptimizer(std::function<T(const Vector&)> objective_func,
                         const Vector& initial_guess, T alpha = 1.0,
                         T gamma = 2.0, T rho = 0.5, T sigma = 0.5)
-        : objective_func_(objective_func), alpha_(alpha), rho_(rho),
-          gamma_(gamma), sigma_(sigma) {
-      auto n = initial_guess.size();
-      simplex_.resize(Dimension, n + 1);
-      // Initialize simplex
+        : objective_func_(objective_func), alpha_(alpha), gamma_(gamma),
+          rho_(rho), sigma_(sigma) {
+      int n = initial_guess.size();
+      simplex_.resize(Dimension == Eigen::Dynamic ? n : Dimension, n + 1);
+      simplex_.col(n) = initial_guess;
+
       for (int i = 0; i < n; ++i) {
         simplex_.col(i) = initial_guess;
         simplex_(i, i) +=
             (initial_guess(i) != 0) ? 0.05 * initial_guess(i) : 0.00025;
       }
-      simplex_.col(n) = initial_guess; // last column is the initial guess
 
       fvalues_.resize(n + 1);
       for (int i = 0; i <= n; ++i) {
@@ -238,27 +238,24 @@ namespace kbd {
       }
     }
 
-    Vector optimize(int max_iterations = 1000, T tol = 1e-6) {
-      auto n = simplex_.rows();
-      Vector centroid(n), reflected(n), expanded(n), contracted(n);
-      T f_reflected, f_expanded, f_contracted;
+    Vector optimize(int max_iterations = 10000, T tol = 1e-6) {
+      int n = simplex_.rows();
       int iter = 0;
 
       while (iter < max_iterations) {
         sort_simplex();
-
         if (std::abs(fvalues_(n) - fvalues_(0)) < tol) {
           break;
         }
 
         // compute centroid of all points except the worst
-        centroid = simplex_.leftCols(n).rowwise().mean();
-        reflected = centroid + alpha_ * (centroid - simplex_.col(n));
-        f_reflected = objective_func_(reflected);
+        Vector centroid = simplex_.leftCols(n).rowwise().mean();
+        Vector reflected = centroid + alpha_ * (centroid - simplex_.col(n));
+        T f_reflected = objective_func_(reflected);
 
         if (f_reflected < fvalues_(0)) {
-          expanded = centroid + gamma_ * (reflected - centroid);
-          f_expanded = objective_func_(expanded);
+          Vector expanded = centroid + gamma_ * (reflected - centroid);
+          T f_expanded = objective_func_(expanded);
           if (f_expanded < f_reflected) {
             simplex_.col(n) = expanded;
             fvalues_(n) = f_expanded;
@@ -270,33 +267,22 @@ namespace kbd {
           simplex_.col(n) = reflected;
           fvalues_(n) = f_reflected;
         } else {
-          if (f_reflected < fvalues_(n)) {
-            contracted = centroid + rho_ * (reflected - centroid);
-            f_contracted = objective_func_(contracted);
-            if (f_contracted < f_reflected) {
-              simplex_.col(n) = f_contracted;
-              fvalues_(n) = f_contracted;
-              continue;
-            }
+          Vector contracted = centroid + rho_ * (simplex_.col(n) - centroid);
+          T f_contracted = objective_func_(contracted);
+          if (f_contracted < fvalues_(n)) {
+            simplex_.col(n) = contracted;
+            fvalues_(n) = f_contracted;
           } else {
-            contracted = centroid + rho_ * (simplex_.col(n) - centroid);
-            f_contracted = objective_func_(contracted);
-            if (f_contracted < fvalues_(n)) {
-              simplex_.col(n) = contracted;
-              fvalues_(n) = f_contracted;
-              continue;
+            // shrink
+            for (int i = 1; i < n; ++i) {
+              simplex_.col(i) = simplex_.col(0) +
+                                sigma_ * (simplex_.col(i) - simplex_.col(0));
+              fvalues_(i) = objective_func_(simplex_.col(i));
             }
-          }
-          // shrink
-          for (int i = 1; i <= n; ++i) {
-            simplex_.col(i) =
-                simplex_.col(0) + sigma_ * (sigma_.col(i) - simplex_.col(0));
-            fvalues_(i) = objective_func_(simplex_.col(i));
           }
         }
         iter++;
       }
-
       return simplex_.col(0);
     }
 
@@ -306,7 +292,6 @@ namespace kbd {
     T alpha_, gamma_, rho_, sigma_;
     std::function<T(const Vector&)> objective_func_;
 
-  private:
     void sort_simplex() {
       std::vector<int> idx(fvalues_.size());
       std::iota(idx.begin(), idx.end(), 0);
@@ -316,9 +301,8 @@ namespace kbd {
       Matrix sorted_simplex = simplex_;
       for (int i = 0; i < idx.size(); ++i) {
         simplex_.col(i) = sorted_simplex.col(idx[i]);
+        fvalues_(i) = fvalues_(idx[i]);
       }
-
-      std::sort(fvalues_.data(), fvalues_.data() + fvalues_.size());
     }
   };
 

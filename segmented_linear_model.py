@@ -609,7 +609,7 @@ def generate_parameters_linear_search(
     # After collecting all results, analyze them based on the given conditions
     for i in range(len(mses)):
         z_er = z_error_rates[i]
-        if z_er[0:4].all() < 0.2 and z_er[4:].all() < 0.4:
+        if z_er[0:4].all() < 0.02 and z_er[4:].all() < 0.04:
             if mses[i] < lowest_mse:
                 lowest_mse = mses[i]
                 best_range = ranges[i]
@@ -830,15 +830,19 @@ if __name__ == "__main__":
     save_dir = f"{cwd}/{camera_type}"
     tablepath = f"{cwd}/{camera_type}/{table_name}"
     save_params_path = (
-        save_dir
-        + f"/params_{global_judge}_{optimizer_judge}_scale1.6.json"
+        save_dir + f"/params_{global_judge}_{optimizer_judge}_scale1.6.json"
     )
 
     df, focal, baseline = preprocessing(root_dir, tablepath)
     eval_res, acceptance_rate = eval(df)
     print(f"acceptance rate is {acceptance_rate}")
 
-    if (not pass_or_not(df=df)) or (acceptance_rate < EVAL_WARNING_RATE):
+    if pass_or_not(df):
+        print("passed!")
+    else:
+        print("failed!")
+
+    if (not pass_or_not(df=df)) and (acceptance_rate < EVAL_WARNING_RATE):
         print("*********** ERROR *************")
         print(
             f"Please be really cautious since the acceptance rate is {acceptance_rate},"

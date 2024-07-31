@@ -206,7 +206,7 @@ def generate_parameters_linear_search(
     # After collecting all results, analyze them based on the given conditions
     for i in range(len(mses)):
         z_er = z_error_rates[i]
-        if z_er[0:4].all() < 0.2 and z_er[4:].all() < 0.4:
+        if z_er[0:4].all() < 0.02 and z_er[4:].all() < 0.04:
             if mses[i] < lowest_mse:
                 lowest_mse = mses[i]
                 best_range = ranges[i]
