@@ -9,13 +9,9 @@ from KBD.apis import (
     generate_parameters_linear_search,
     generate_parameters_trf,
 )
-from KBD.constants import (
-    CAMERA_TYPE,
-    OUT_FIG_GLOBAL_PREDICTION_FILE_NAME,
-    OUT_FIG_LINEAR_PREDICTION_FILE_NAME,
-)
+from KBD.constants import *
 from KBD.eval import check_monotonicity, eval
-from KBD.helpers import parallel_copy, sampling_strategy_criterion
+from KBD.helpers import parallel_copy, preprocessing, sampling_strategy_criterion
 from KBD.utils import (
     generate_global_KBD_data,
     generate_linear_KBD_data,
@@ -33,9 +29,11 @@ if __name__ == "__main__":
     scaling_factor = 10
 
     root_dir = "/home/william/extdisk/data/KBD"
-    camera_types = [f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))]
+    camera_types = [
+        f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
+    ]
     disjoint_depth_ranges = [600, 3000]
-    engine = "Nelder-Mead"
+    engine = "Trust-Region"
 
     for apply_global in [True, False]:
         # if apply_global:
@@ -70,11 +68,15 @@ if __name__ == "__main__":
             )
             # sampling_strategy_criterion(root_dir, tablepath, tablepath.replace("depthquality","sampling-criterion"))
 
-            eval_res, acceptance_rate = eval(file_path, table_path)
+            df, focal, baseline = preprocessing(file_path, table_path)
+            
+            eval_res, acceptance_rate = eval(df)
             print(f"acceptance rate is {acceptance_rate}")
-            # matrix, focal, baseline = generate_parameters_linear(
-            #     path=file_path,
-            #     table_path=table_path,
+
+            # matrix = generate_parameters_linear(
+            #     df,
+            #     focal,
+            #     baseline,
             #     save_path=base_path,
             #     disjoint_depth_range=disjoint_depth_ranges,
             #     compensate_dist=compensate_dist,
@@ -83,18 +85,17 @@ if __name__ == "__main__":
             #     plot=True,
             # )
 
-            matrix, best_range, best_z_err, focal, baseline = (
-                generate_parameters_linear_search(
-                    path=file_path,
-                    table_path=table_path,
-                    save_path=base_path,
-                    search_range=(600, 1100),
-                    engine=engine,
-                    compensate_dist=compensate_dist,
-                    scaling_factor=scaling_factor,
-                    apply_global=apply_global,
-                    plot=True,
-                )
+            matrix, best_range, best_z_err = generate_parameters_linear_search(
+                df,
+                focal,
+                baseline,
+                save_path=os.path.join(base_path, optimizer_judge),
+                search_range=(600, 1100),
+                engine=engine,
+                compensate_dist=compensate_dist,
+                scaling_factor=scaling_factor,
+                apply_global=apply_global,
+                plot=True,
             )
 
             range_raw = best_range

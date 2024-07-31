@@ -129,9 +129,11 @@ def plot_linear2(
     scaling_factor,
     apply_global=False,
     save_path=None,
-):
+):  
     linear_model, optimization_result, linear_model2 = res
     fb = focal * baseline
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
     # Filter data where actual_depth >= 600
     mask0 = np.where(gt < disjoint_depth_range[0] - compensate_dist)
     mask1 = np.where(

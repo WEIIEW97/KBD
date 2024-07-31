@@ -1,17 +1,16 @@
 import os
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import mean_squared_error, r2_score
 
-from .constants import GT_DIST_NAME, GT_ERROR_NAME, MAPPED_PAIR_DICT
+from .constants import GT_DIST_NAME, GT_ERROR_NAME
 from .core import modify_linear_vectorize2
-from .helpers import preprocessing
 
 from .models import linear_KBD_piecewise_func
 
 
-def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
-    df, _, _ = preprocessing(path, table_path, pair_dict)
+def eval(df: pd.DataFrame, stage=100):
     df["absolute_error_rate"] = df[GT_ERROR_NAME] / df[GT_DIST_NAME]
     max_stage = np.max(df[GT_DIST_NAME].values)
     n_stage = int(max_stage / stage)
@@ -32,19 +31,18 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
     return eval_res, acceptance
 
 
-def pass_or_not(path, table_path, pair_dict=MAPPED_PAIR_DICT):
-    df, _, _ = preprocessing(path, table_path, pair_dict)
+def pass_or_not(df: pd.DataFrame):
     df["absolute_error_rate"] = df[GT_ERROR_NAME] / df[GT_DIST_NAME]
     metric_dist = [300, 500, 600, 1000, 1500, 2000]
 
     for metric in metric_dist:
         quali = df[df[GT_DIST_NAME] == metric]["absolute_error_rate"]
-
+        quali = np.abs(quali)
         if metric in (300, 500, 600, 1000):
-            if not (quali < 0.2).all():
+            if not (quali < 0.02).all():
                 return False
         elif metric in (1500, 2000):
-            if not (quali < 0.4).all():
+            if not (quali < 0.04).all():
                 return False
     return True
 
@@ -69,7 +67,7 @@ def evaluate_target(
         compensate_dist,
         scaling_factor,
     )
-    z_error_rate = np.abs((z_after - z_array)/z_array)
+    z_error_rate = np.abs((z_after - z_array) / z_array)
     print(f"z before is {z_array}")
     print(f"z after is {z_after}")
     return mean_squared_error(z_array, z_after), z_error_rate

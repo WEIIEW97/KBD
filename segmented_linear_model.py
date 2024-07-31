@@ -9,10 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 from numba import jit
-from sklearn.metrics import mean_squared_error
 
-from scipy.optimize import minimize
+from scipy.optimize import least_squares, minimize
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
 ##################### predefined constants #####################
@@ -135,8 +135,7 @@ def preprocessing(path, table_path, paid_dict=MAPPED_PAIR_DICT):
     return df, focal, baseline
 
 
-def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
-    df, _, _ = preprocessing(path, table_path, pair_dict)
+def eval(df: pd.DataFrame, stage=100):
     df["absolute_error_rate"] = df[GT_ERROR_NAME] / df[GT_DIST_NAME]
     max_stage = np.max(df[GT_DIST_NAME].values)
     n_stage = int(max_stage / stage)
@@ -157,19 +156,18 @@ def eval(path, table_path, pair_dict=MAPPED_PAIR_DICT, stage=200):
     return eval_res, acceptance
 
 
-def pass_or_not(path, table_path, pair_dict=MAPPED_PAIR_DICT):
-    df, _, _ = preprocessing(path, table_path, pair_dict)
+def pass_or_not(df: pd.DataFrame):
     df["absolute_error_rate"] = df[GT_ERROR_NAME] / df[GT_DIST_NAME]
     metric_dist = [300, 500, 600, 1000, 1500, 2000]
 
     for metric in metric_dist:
         quali = df[df[GT_DIST_NAME] == metric]["absolute_error_rate"]
-
+        quali = np.abs(quali)
         if metric in (300, 500, 600, 1000):
-            if not (quali < 0.2).all():
+            if not (quali < 0.02).all():
                 return False
         elif metric in (1500, 2000):
-            if not (quali < 0.4).all():
+            if not (quali < 0.04).all():
                 return False
     return True
 
@@ -194,7 +192,7 @@ def evaluate_target(
         compensate_dist,
         scaling_factor,
     )
-    z_error_rate = np.abs((z_after - z_array)/z_array)
+    z_error_rate = np.abs((z_after - z_array) / z_array)
     # print(f"z before is {z_array}")
     # print(f"z after is {z_after}")
     return mean_squared_error(z_array, z_after), z_error_rate
@@ -297,6 +295,83 @@ class NelderMeadOptimizer:
             print("Optimization failed.")
 
 
+class TrustRegionReflectiveOptimizer:
+    def __init__(
+        self,
+        gt,
+        est,
+        focal,
+        baseline,
+        local_restriction_weights=1000,
+        restriction_loc=1000,
+        target_rate=0.02,
+    ):
+        self.gt = gt
+        self.est = est
+        self.focal = focal
+        self.baseline = baseline
+        self.local_restriction_weights = local_restriction_weights
+        self.restriction_loc = restriction_loc
+        self.target_rate = target_rate
+
+        self.initial_params = [1.0, 0.01, 10]
+        self.bounds = ([0, -10, -100], [10, 10, 100])
+
+    def loss(self, params):
+        k, delta, b = params
+        pred = model(self.est, self.focal, self.baseline, k, delta, b)
+        residuals = pred - self.gt
+        # mse = np.mean(residuals**2)
+
+        local_restric = np.abs(
+            (
+                pred[self.gt < self.restriction_loc]
+                - self.gt[self.gt < self.restriction_loc]
+            )
+            / self.gt[self.gt < self.restriction_loc]
+        )
+        return np.concatenate(
+            (
+                residuals,
+                self.local_restriction_weights
+                * np.maximum(0, local_restric - self.target_rate),
+            )
+        )
+
+    def optimize(self, initial_params, bounds):
+        result = least_squares(self.loss, initial_params, bounds=bounds)
+        return result
+
+    def run(self):
+        result = self.optimize(self.initial_params, self.bounds)
+        print("Optimization Result:", result)
+
+        if result.success:
+            optimized_params = result.x
+            k, delta, b = optimized_params
+
+            pred = model(self.est, self.focal, self.baseline, k, delta, b)
+
+            mse = np.mean((pred - self.gt) ** 2)
+            local_restric = np.mean(
+                np.abs(
+                    (
+                        pred[self.gt < self.restriction_loc]
+                        - self.gt[self.gt < self.restriction_loc]
+                    )
+                    / self.gt[self.gt < self.restriction_loc]
+                )
+            )
+
+            print("MSE:", mse)
+            print(f"Error less than {self.restriction_loc}:", local_restric)
+            print("Optimized Parameters:", optimized_params)
+
+            return k, delta, b
+        else:
+            print("Optimization failed.")
+
+
 class JointLinearSmoothingOptimizer:
     def __init__(
         self,
@@ -307,20 +382,24 @@ class JointLinearSmoothingOptimizer:
         disjoint_depth_range,
         compensate_dist=200,
         scaling_factor=10,
+        engine="Nelder-Mead",
         local_restriction_weights=1000,
-        restriction_loc=1000,
         target_rate=0.02,
         apply_global=False,
         apply_weights=False,
         apply_l2=False,
         reg_lambda=0.001,
     ):
+        assert engine in (
+            "Nelder-Mead",
+            "Trust-Region",
+        ), f"optimize engine {engine} is not supported!"
         self.gt = gt
         self.est = est
         self.focal = focal
         self.baseline = baseline
         self.local_restriction_weights = local_restriction_weights
-        self.restriction_loc = restriction_loc
+        self.restriction_loc = disjoint_depth_range[0]
         self.target_rate = target_rate
         self.disjoint_depth_range = disjoint_depth_range
         self.compensate_dist = compensate_dist
@@ -331,6 +410,7 @@ class JointLinearSmoothingOptimizer:
         self.reg_lambda = reg_lambda
 
         self.fb = focal * baseline
+        self.engine = engine
 
         self.initial_params = [1.0, 0.01, 10]
         self.bounds = ([0, -10, -100], [10, 10, 100])
@@ -348,28 +428,33 @@ class JointLinearSmoothingOptimizer:
         else:
             self.kbd_x = self.est
             self.kbd_y = self.gt
-        kbd_base_optimizer = NelderMeadOptimizer(
-            self.kbd_y,
-            self.kbd_x,
-            self.focal,
-            self.baseline,
-            self.local_restriction_weights,
-            self.restriction_loc,
-            self.target_rate,
-            self.apply_weights,
-            self.apply_l2,
-            self.reg_lambda,
-        )
+
+        kbd_base_optimizer = None
+
+        if self.engine == "Nelder-Mead":
+            kbd_base_optimizer = NelderMeadOptimizer(
+                self.kbd_y,
+                self.kbd_x,
+                self.focal,
+                self.baseline,
+                self.local_restriction_weights,
+                self.restriction_loc,
+                self.target_rate,
+                self.apply_weights,
+                self.apply_l2,
+                self.reg_lambda,
+            )
+        elif self.engine == "Trust-Region":
+            kbd_base_optimizer = TrustRegionReflectiveOptimizer(
+                self.kbd_y,
+                self.kbd_x,
+                self.focal,
+                self.baseline,
+                restriction_loc=self.restriction_loc,
+            )
 
         kbd_result = kbd_base_optimizer.run()
         return kbd_result
-
-    def calculate_eta(self):
-        lb = self.disjoint_depth_range[0]
-        # lb shoud be restrictly greater than 1.000001
-
-        eta = self.fb / [lb - 1] - self.fb / lb
-        return eta
 
     def run(self):
         kbd_result = self.segment()
@@ -405,18 +490,17 @@ class JointLinearSmoothingOptimizer:
 
 
 def generate_parameters_linear(
-    path: str,
-    table_path: str,
+    df: pd.DataFrame,
+    focal: float,
+    baseline: float,
     disjoint_depth_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
+    engine="Nelder-Mead",
     apply_global=False,
     apply_weights=False,
     apply_l2=False,
 ):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
-
-    # focal *= 1.6     # extremely dirty hack
 
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
@@ -429,6 +513,7 @@ def generate_parameters_linear(
         disjoint_depth_range,
         compensate_dist,
         scaling_factor,
+        engine=engine,
         apply_global=apply_global,
         apply_weights=apply_weights,
         apply_l2=apply_l2,
@@ -451,7 +536,8 @@ def generate_parameters_linear(
     )
     params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
 
-    return params_matrix, focal, baseline
+    return params_matrix
+
 
 def construct_param_matrix(linear_model1, kbd_params, linear_model2):
     k_, delta_, b_ = kbd_params
@@ -469,19 +555,17 @@ def construct_param_matrix(linear_model1, kbd_params, linear_model2):
 
 
 def generate_parameters_linear_search(
-    path: str,
-    table_path: str,
+    df: pd.DataFrame,
+    focal: float,
+    baseline: float,
     search_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
-    apply_global=False,  
+    engine="Nelder-Mead",
+    apply_global=False,
 ):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
-
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-    error = df[GT_ERROR_NAME].values
-
     STEP = 50
 
     lowest_mse = np.inf
@@ -492,7 +576,7 @@ def generate_parameters_linear_search(
     lm2s = []
     mses = []
     z_error_rates = []
-    for start in range(search_range[0], search_range[1]+STEP, STEP):
+    for start in range(search_range[0], search_range[1] + STEP, STEP):
         disjoint_depth_range = [start, 3000]
         jlm = JointLinearSmoothingOptimizer(
             actual_depth,
@@ -502,6 +586,7 @@ def generate_parameters_linear_search(
             disjoint_depth_range,
             compensate_dist,
             scaling_factor,
+            engine=engine,
             apply_global=apply_global,
             apply_weights=False,
             apply_l2=False,
@@ -509,16 +594,18 @@ def generate_parameters_linear_search(
 
         lm1, kbd, lm2 = jlm.run()
         pm = construct_param_matrix(lm1, kbd, lm2)
-        mse, z_error_rate = evaluate_target(focal, baseline, pm, disjoint_depth_range, compensate_dist, scaling_factor)
+        mse, z_error_rate = evaluate_target(
+            focal, baseline, pm, disjoint_depth_range, compensate_dist, scaling_factor
+        )
         print(f"z_error_rate is {z_error_rate}")
         ranges.append(disjoint_depth_range)
         pms.append(pm)
         lm1s.append(lm1)
         kbds.append(kbd)
-        lm2s.append(lm2s)
+        lm2s.append(lm2)
         mses.append(mse)
         z_error_rates.append(z_error_rate)
-    
+
     # After collecting all results, analyze them based on the given conditions
     for i in range(len(mses)):
         z_er = z_error_rates[i]
@@ -527,6 +614,7 @@ def generate_parameters_linear_search(
                 lowest_mse = mses[i]
                 best_range = ranges[i]
                 best_pm = pms[i]
+                best_z_error_rate = z_error_rates[i]
 
     # If no suitable mse is found, pick the smallest overall
     if lowest_mse == np.inf:
@@ -534,10 +622,15 @@ def generate_parameters_linear_search(
         index = mses.index(lowest_mse)
         best_range = ranges[index]
         best_pm = pms[index]
+        best_z_error_rate = z_error_rates[index]
 
+    print("=" * 50)
     print("Best ranges:", best_range)
+    print("*" * 50)
+    print("Best z error rate: ", best_z_error_rate)
+    print("=" * 50)
 
-    return best_pm, focal, baseline
+    return best_pm, best_range, best_z_error_rate
 
 
 def save_arrays_to_json(savepath, arr1d, arr2d):
@@ -643,7 +736,6 @@ def modify_linear(
     return out
 
 
-
 def modify_linear_vectorize2(
     m: np.ndarray,
     focal: float,
@@ -717,23 +809,19 @@ def modify_linear_vectorize2(
 if __name__ == "__main__":
     # cwd = os.getcwd()
 
-    cwd = "D:/william/data/KBD/0723"
+    cwd = "/home/william/extdisk/data/KBD"
     # please make adjustments to them accordingly
 
     compensate_dist = 400
     scaling_factor = 10
-    disjoint_depth_range = [600, 3000]
-    camera_type = "N09ALC247H0046"
-    table_name = "depthquality_2024-07-23.xlsx"
+    # disjoint_depth_range = [600, 3000]
+    engine = "Nelder-Mead"  # Nelder-Mead or Trust-Region
+    camera_type = "N9LAZG24GN0130"
+    table_name = "depthquality_2024-07-25.xlsx"
     apply_global = False
     global_judge = "global" if apply_global else "local"
-
+    optimizer_judge = "nelder-mead" if engine == "Nelder-Mead" else "trust-region"
     print(f"processing {camera_type} now with {table_name} ...")
-    # root_dir = f"{cwd}/data/{camera_type}/image_data"
-    # copy_dir = f"{cwd}/data/{camera_type}/image_data_transformed_linear_{global_judge}"
-    # save_dir = f"{cwd}/data/{camera_type}"
-    # tablepath = f"{cwd}/data/{camera_type}/{table_name}"
-    # save_params_path = save_dir + f"/segmented_linear_KBD_params_{global_judge}.json"
 
     root_dir = f"{cwd}/{camera_type}/image_data"
     copy_dir = (
@@ -742,27 +830,37 @@ if __name__ == "__main__":
     save_dir = f"{cwd}/{camera_type}"
     tablepath = f"{cwd}/{camera_type}/{table_name}"
     save_params_path = (
-        save_dir + f"/segmented_linear_KBD_params_{global_judge}_scale1.6.json"
+        save_dir
+        + f"/params_{global_judge}_{optimizer_judge}_scale1.6.json"
     )
 
-    eval_res, acceptance_rate = eval(root_dir, tablepath)
-    if acceptance_rate < EVAL_WARNING_RATE:
-        print("*********** WARNING *************")
+    df, focal, baseline = preprocessing(root_dir, tablepath)
+    eval_res, acceptance_rate = eval(df)
+    print(f"acceptance rate is {acceptance_rate}")
+
+    if (not pass_or_not(df=df)) or (acceptance_rate < EVAL_WARNING_RATE):
+        print("*********** ERROR *************")
         print(
             f"Please be really cautious since the acceptance rate is {acceptance_rate},"
         )
         print("This may not be the ideal data to be tackled with.")
-        print("*********** END OF WARNING *************")
-    print("Beging to generate parameters ...")
-    matrix, focal, baseline = generate_parameters_linear(
-        path=root_dir,
-        table_path=tablepath,
-        disjoint_depth_range=disjoint_depth_range,
+        print("The original data presicion did not pass ... ")
+        print("Due to the compilance of this program, we have to shut down generation.")
+        print("*********** END OF ERROR *************")
+        raise ValueError("Program stopped .")
+    print("Begin to generate parameters with line searching...")
+
+    matrix, best_range, best_z_err = generate_parameters_linear_search(
+        df,
+        focal,
+        baseline,
+        search_range=(600, 1100),
+        engine=engine,
         compensate_dist=compensate_dist,
         scaling_factor=scaling_factor,
         apply_global=apply_global,
     )
-    range_raw = disjoint_depth_range
+    range_raw = best_range
     extra_range = [
         range_raw[0] - compensate_dist,
         range_raw[0],
@@ -785,7 +883,7 @@ if __name__ == "__main__":
         matrix,
         focal,
         baseline,
-        disjoint_depth_range,
+        best_range,
         compensate_dist,
         scaling_factor,
     )

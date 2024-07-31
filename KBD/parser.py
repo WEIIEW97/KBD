@@ -1,27 +1,6 @@
 import json
 from collections import OrderedDict
 
-import yaml
-
-
-def ordered_dict_representer(dumper, data):
-    return dumper.represent_dict(data.items())
-
-
-yaml.add_representer(OrderedDict, ordered_dict_representer)
-
-
-def create_default_KBD_config(path: str, content: dict):
-    with open(path, "w") as f:
-        yaml.dump(content, f, default_flow_style=None, sort_keys=False)
-
-
-def load_yaml(path: str) -> dict:
-    with open(path, "r") as f:
-        content = yaml.safe_load(f)
-
-    return content
-
 
 def load_json(path: str) -> dict:
     with open(path, "r") as f:

@@ -189,13 +189,6 @@ class JointLinearSmoothingOptimizer:
         kbd_result = kbd_base_optimizer.run()
         return kbd_result
 
-    def calculate_eta(self):
-        lb = self.disjoint_depth_range[0]
-        # lb shoud be restrictly greater than 1.000001
-
-        eta = self.fb / [lb - 1] - self.fb / lb
-        return eta
-
     def run(self):
         kbd_result = self.segment()
         if kbd_result is not None:
@@ -224,8 +217,6 @@ class JointLinearSmoothingOptimizer:
             x2 = np.array([x_min, after_x])
             y2 = np.array([x_hat_min, after_x])
             lm2.fit(x2.reshape(-1, 1), y2)
-
-            self.params = (lm1, kbd_result, lm2)
 
             return lm1, kbd_result, lm2
         return
@@ -266,7 +257,6 @@ class TrustRegionReflectiveOptimizer:
             )
             / self.gt[self.gt < self.restriction_loc]
         )
-        print(local_restric)
         return np.concatenate(
             (
                 residuals,

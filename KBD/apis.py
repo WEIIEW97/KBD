@@ -2,15 +2,14 @@ import os
 from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 from .constants import *
 from .core import modify, modify_linear, modify_linear_vectorize2
 from .eval import evaluate_target
 
-from .helpers import preprocessing, retrive_file_names, retrive_folder_names
-from .kernels import gaussian_kernel, laplacian_kernel, polynomial_kernel_n2
-from .models import model_kbd_bayes, model_kbd_v3, model_kernel_fit
+from .helpers import retrive_file_names, retrive_folder_names
 from .optimizers import (
     JointLinearSmoothingOptimizer,
     NelderMeadOptimizer,
@@ -21,14 +20,14 @@ from .utils import depth2disp, json_dumper, load_raw
 
 
 def generate_parameters(
-    path: str,
-    table_path: str,
+    df: pd.DataFrame,
+    focal: float,
+    baseline: float,
     save_path: str,
     use_l2: bool = False,
     reg_lambda: float = 0.01,
     plot: bool = False,
 ):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
     actual_depth = df[GT_DIST_NAME].values  # make sure is np.ndarray
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
@@ -81,16 +80,16 @@ def generate_parameters(
         plot_comparison(
             actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
         )
-    return k_, delta_, b_, focal, baseline
+    return k_, delta_, b_
 
 
 def generate_parameters_trf(
-    path: str,
-    table_path: str,
+    df: pd.DataFrame,
+    focal: float,
+    baseline: float,
     save_path: str,
     plot: bool = False,
 ):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
 
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
@@ -129,69 +128,8 @@ def generate_parameters_trf(
         plot_comparison(
             actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
         )
-    return k_, delta_, b_, focal, baseline
+    return k_, delta_, b_
 
-
-def generate_parameters_adv(path: str, table_path: str, save_path: str, method="evo"):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
-
-    actual_depth = df[GT_DIST_NAME].values
-    avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-    error = df[GT_ERROR_NAME].values
-
-    assert method in ("evo", "bayes")
-
-    res = None
-
-    if method == "evo":
-        res = model_kbd_v3(actual_depth, avg_50x50_anchor_disp, focal, baseline)
-    elif method == "bayes":
-        res = model_kbd_bayes(actual_depth, avg_50x50_anchor_disp, focal, baseline)
-    common_prefix = f"{method}_"
-    param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
-    comp_path = os.path.join(save_path, common_prefix + OUT_FIG_COMP_FILE_NAME)
-    residual_path = os.path.join(save_path, common_prefix + OUT_FIG_RESIDUAL_FILE_NAME)
-    error_rate_path = os.path.join(
-        save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
-    )
-
-    # params_dict = {"k": str(res.x[0]), "delta": str(res.x[1]), "b": str(res.x[2])}
-
-    if method == "evo":
-        k_ = float(np.float64(res.x[0]))
-        delta_ = float(np.float64(res.x[1]))
-        b_ = float(np.float64(res.x[2]))
-    elif method == "bayes":
-        k_ = float(np.float64(res[0]))
-        delta_ = float(np.float64(res[1]))
-        b_ = float(np.float64(res[2]))
-    params_dict = {
-        "k": k_,
-        "delta": delta_,
-        "b": b_,
-    }
-    print(params_dict)
-
-    json_dumper(params_dict, param_path)
-    print("Generating done...")
-
-    pred = k_ * focal * baseline / (avg_50x50_anchor_disp + delta_) + b_
-    residual = pred - actual_depth
-    plot_residuals(residual, error, actual_depth, residual_path)
-    plot_error_rate(residual, error, actual_depth, error_rate_path)
-    plot_comparison(
-        actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-    )
-    error_less_than_1000_bayes = np.mean(
-        np.abs(
-            (pred[actual_depth < 1000] - actual_depth[actual_depth < 1000])
-            / actual_depth[actual_depth < 1000]
-        )
-    )
-
-    print(f"error in <1000 is {error_less_than_1000_bayes}")
-
-    return k_, delta_, b_, focal, baseline
 
 
 def construct_param_matrix(linear_model1, kbd_params, linear_model2):
@@ -210,18 +148,17 @@ def construct_param_matrix(linear_model1, kbd_params, linear_model2):
 
 
 def generate_parameters_linear_search(
-    path: str,
-    table_path: str,
+    df: pd.DataFrame,
+    focal: float,
+    baseline: float,
     save_path: str,
     search_range: tuple,
     compensate_dist: float = 200,
     scaling_factor: float = 10,
     engine="Nelder-Mead",
     apply_global=False,
-    plot: bool = False,     
+    plot: bool = False,
 ):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
-
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
     error = df[GT_ERROR_NAME].values
@@ -236,7 +173,7 @@ def generate_parameters_linear_search(
     lm2s = []
     mses = []
     z_error_rates = []
-    for start in range(search_range[0], search_range[1]+STEP, STEP):
+    for start in range(search_range[0], search_range[1] + STEP, STEP):
         disjoint_depth_range = [start, 3000]
         jlm = JointLinearSmoothingOptimizer(
             actual_depth,
@@ -254,7 +191,9 @@ def generate_parameters_linear_search(
 
         lm1, kbd, lm2 = jlm.run()
         pm = construct_param_matrix(lm1, kbd, lm2)
-        mse, z_error_rate = evaluate_target(focal, baseline, pm, disjoint_depth_range, compensate_dist, scaling_factor)
+        mse, z_error_rate = evaluate_target(
+            focal, baseline, pm, disjoint_depth_range, compensate_dist, scaling_factor
+        )
         print(f"z_error_rate is {z_error_rate}")
         ranges.append(disjoint_depth_range)
         pms.append(pm)
@@ -263,7 +202,7 @@ def generate_parameters_linear_search(
         lm2s.append(lm2)
         mses.append(mse)
         z_error_rates.append(z_error_rate)
-    
+
     # After collecting all results, analyze them based on the given conditions
     for i in range(len(mses)):
         z_er = z_error_rates[i]
@@ -287,13 +226,13 @@ def generate_parameters_linear_search(
         best_kbd = kbds[index]
         best_lm2 = lm2s[index]
         best_z_error_rate = z_error_rates[index]
-    
-    print("="*50)
+
+    print("=" * 50)
     print("Best ranges:", best_range)
-    print("*"*50)
+    print("*" * 50)
     print("Best z error rate: ", best_z_error_rate)
-    print("="*50)
-    
+    print("=" * 50)
+
     if plot:
         plot_linear2(
             actual_depth,
@@ -309,12 +248,13 @@ def generate_parameters_linear_search(
             save_path=save_path,
         )
 
-    return best_pm, best_range, best_z_error_rate, focal, baseline
+    return best_pm, best_range, best_z_error_rate
 
 
 def generate_parameters_linear(
-    path: str,
-    table_path: str,
+    df: pd.DataFrame,
+    focal: float,
+    baseline: float,
     save_path: str,
     disjoint_depth_range: tuple,
     compensate_dist: float = 200,
@@ -322,8 +262,6 @@ def generate_parameters_linear(
     apply_global=False,
     plot: bool = False,
 ):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
-
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
     error = df[GT_ERROR_NAME].values
@@ -372,139 +310,7 @@ def generate_parameters_linear(
     )
     params_matrix[4, :] = np.array([1, 0, 0, 1, 0])
 
-    return params_matrix, focal, baseline
-
-
-def generate_parameters_kernel(
-    path: str,
-    table_path: str,
-    save_path: str,
-    method="gaussian",
-    plot: bool = False,
-):
-    df, focal, baseline = preprocessing(path=path, table_path=table_path)
-
-    actual_depth = df[GT_DIST_NAME]
-    avg_50x50_anchor_disp = df[AVG_DISP_NAME]
-    error = df[GT_ERROR_NAME]
-
-    res = model_kernel_fit(
-        actual_depth, avg_50x50_anchor_disp, focal, baseline, method=method
-    )
-
-    common_prefix = f"{method}_"
-    param_path = os.path.join(save_path, common_prefix + OUT_PARAMS_FILE_NAME)
-    comp_path = os.path.join(save_path, common_prefix + OUT_FIG_COMP_FILE_NAME)
-    residual_path = os.path.join(save_path, common_prefix + OUT_FIG_RESIDUAL_FILE_NAME)
-    error_rate_path = os.path.join(
-        save_path, common_prefix + OUT_FIG_ERROR_RATE_FILE_NAME
-    )
-
-    if method == "gaussian":
-        k = float(np.float64(res.x[0]))
-        b = float(np.float64(res.x[1]))
-        mu = float(np.float64(res.x[2]))
-        sigma = float(np.float64(res.x[3]))
-        params_dict = {
-            "k": k,
-            "b": b,
-            "mu": mu,
-            "sigma": sigma,
-        }
-        print(params_dict)
-
-        json_dumper(params_dict, param_path)
-        print("Generating done...")
-
-        if plot:
-            pred = (
-                k
-                * focal
-                * baseline
-                / (
-                    avg_50x50_anchor_disp
-                    + gaussian_kernel(avg_50x50_anchor_disp, mu, sigma)
-                )
-                + b
-            )
-            residual = pred - actual_depth
-            plot_residuals(residual, error, actual_depth, residual_path)
-            plot_error_rate(residual, error, actual_depth, error_rate_path)
-            plot_comparison(
-                actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-            )
-        return k, b, mu, sigma, focal, baseline
-    if method == "polynomial":
-        k = float(np.float64(res.x[0]))
-        b_ = float(np.float64(res.x[1]))
-        a = float(np.float64(res.x[2]))
-        b = float(np.float64(res.x[3]))
-        c = float(np.float64(res.x[4]))
-
-        params_dict = {
-            "k": k,
-            "b_": b_,
-            "a": a,
-            "b": b,
-            "c": c,
-        }
-        print(params_dict)
-
-        json_dumper(params_dict, param_path)
-        print("Generating done...")
-
-        if plot:
-            pred = (
-                k
-                * focal
-                * baseline
-                / (
-                    avg_50x50_anchor_disp
-                    + polynomial_kernel_n2(avg_50x50_anchor_disp, a, b, c)
-                )
-                + b_
-            )
-            residual = pred - actual_depth
-            plot_residuals(residual, error, actual_depth, residual_path)
-            plot_error_rate(residual, error, actual_depth, error_rate_path)
-            plot_comparison(
-                actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-            )
-        return k, b_, a, b, c, focal, baseline
-    if method == "laplacian":
-        k = float(np.float64(res.x[0]))
-        b = float(np.float64(res.x[1]))
-        mu = float(np.float64(res.x[2]))
-        sigma = float(np.float64(res.x[3]))
-        params_dict = {
-            "k": k,
-            "b": b,
-            "mu": mu,
-            "sigma": sigma,
-        }
-        print(params_dict)
-
-        json_dumper(params_dict, param_path)
-        print("Generating done...")
-
-        if plot:
-            pred = (
-                k
-                * focal
-                * baseline
-                / (
-                    avg_50x50_anchor_disp
-                    + laplacian_kernel(avg_50x50_anchor_disp, mu, sigma)
-                )
-                + b
-            )
-            residual = pred - actual_depth
-            plot_residuals(residual, error, actual_depth, residual_path)
-            plot_error_rate(residual, error, actual_depth, error_rate_path)
-            plot_comparison(
-                actual_depth, focal * baseline / avg_50x50_anchor_disp, pred, comp_path
-            )
-        return k, b, mu, sigma, focal, baseline
+    return params_matrix
 
 
 def apply_transformation(
