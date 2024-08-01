@@ -32,6 +32,7 @@ namespace kbd {
     float EPSILON = 1e-6;
     int EVAL_STAGE_STEPS = 200;
     double EVAL_WARNING_RATE = 0.5f;
+    double N9_FOCAL_MULTIPLIER = 1.6f;
 
     std::vector<int> ANCHOR_POINT = {H / 2, W / 2};
 

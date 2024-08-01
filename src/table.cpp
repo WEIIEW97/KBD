@@ -117,6 +117,9 @@ namespace kbd {
     // Extract the focal and baseline values (assuming they are the same for all
     // rows)
     focal_ = focal_array->Value(0);
+    /************************************************************** */
+    focal_ *= kbd_config.N9_FOCAL_MULTIPLIER;   // very dirty hack
+    /************************************************************** */
     baseline_ = baseline_array->Value(0);
 
     arrow::DoubleBuilder avg_dist_builder, avg_disp_builder;

@@ -16,7 +16,6 @@
 
 #include "workflow.h"
 
-#include "optimizer.h"
 #include "utils.h"
 #include <arrow/api.h>
 #include <arrow/compute/api.h>
@@ -59,10 +58,12 @@ namespace kbd {
     trimmed_df_ = trimmed_df;
   }
 
-  void LinearWorkflow::optimize() {
+  void LinearWorkflow::optimize(OptimizerDiffType diff_type) {
     auto linear_kbd_optim = JointLinearSmoothingOptimizer(
         gt_double_, est_double_, focal_, baseline_, disjoint_depth_range_, cd_,
         sf_, apply_global_);
+
+    linear_kbd_optim.set_optimizer_type(diff_type);
 
     auto [lm1, kbd_res, lm2] = linear_kbd_optim.run();
     lm1_ = lm1;
@@ -71,7 +72,8 @@ namespace kbd {
   }
 
   void
-  LinearWorkflow::optimize_and_search(const std::array<int, 2>& search_range) {
+  LinearWorkflow::optimize_and_search(const std::array<int, 2>& search_range,
+                                      OptimizerDiffType diff_type) {
     auto lowest_mse = DBL_MAX;
     auto sz = (search_range[1] - search_range[0]) / step_ + 1;
     std::vector<Eigen::Matrix<double, 5, 5>> ranges(sz);
@@ -86,6 +88,7 @@ namespace kbd {
       auto optimizer =
           JointLinearSmoothingOptimizer(gt_double_, est_double_, focal_,
                                         baseline_, rg, cd_, sf_, apply_global_);
+      optimizer.set_optimizer_type(diff_type);
       auto [lm1, kbd, lm2] = optimizer.run();
       auto pm = extend_matrix(lm1, kbd, lm2);
     }
@@ -272,7 +275,6 @@ namespace kbd {
     ndArray<int> z_array(1, metric_points_.size());
     z_array << metric_points_[0], metric_points_[1], metric_points_[2],
         metric_points_[3], metric_points_[4], metric_points_[5];
-    
   }
 
   double LinearWorkflow::get_focal_val() const { return this->focal_; }

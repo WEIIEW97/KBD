@@ -28,21 +28,28 @@ if __name__ == "__main__":
     compensate_dist = 400
     scaling_factor = 10
 
-    root_dir = "/home/william/extdisk/data/KBD"
-    camera_types = [
+    root_dir = "/home/william/extdisk/data/KBD_analysis"
+    # camera_types = [
+    #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
+    # ]
+    disjoint_depth_ranges = [600, 3000]
+    engine = "Nelder-Mead"
+    apply_global = False
+    genres = [
         f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     ]
-    disjoint_depth_ranges = [600, 3000]
-    engine = "Trust-Region"
-
-    for apply_global in [True, False]:
+    for genre in genres:
         # if apply_global:
         #     continue
+        entry_dir = os.path.join(root_dir, genre)
+        camera_types = [
+            f for f in os.listdir(entry_dir) if os.path.isdir(os.path.join(entry_dir, f))
+        ]
         for camera_type in camera_types:
             # if camera_type != "N09ALC247H0046":
             #     continue
             print(f"begin to process {camera_type}")
-            base_path = os.path.join(root_dir, camera_type)
+            base_path = os.path.join(entry_dir, camera_type)
             file_path = os.path.join(base_path, "image_data")
             table_name = [
                 f
@@ -69,7 +76,7 @@ if __name__ == "__main__":
             # sampling_strategy_criterion(root_dir, tablepath, tablepath.replace("depthquality","sampling-criterion"))
 
             df, focal, baseline = preprocessing(file_path, table_path)
-            
+
             eval_res, acceptance_rate = eval(df)
             print(f"acceptance rate is {acceptance_rate}")
 

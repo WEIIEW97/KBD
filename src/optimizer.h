@@ -25,6 +25,7 @@
 #include <array>
 #include <memory>
 #include <functional>
+#include <algorithm>
 
 namespace kbd {
   enum OptimizerDiffType {
@@ -33,13 +34,14 @@ namespace kbd {
     NELDER_MEAD,
   };
 
-  class CeresBaseOptimizer {
+  class BaseOptimizer {
   public:
-    virtual Eigen::Vector3d run() = 0;
-    virtual ~CeresBaseOptimizer() {}
+    virtual Eigen::Vector3d optimize() = 0;
+    virtual void set_init_simplex(const Eigen::Vector3d& initial_guess) = 0;
+    virtual ~BaseOptimizer() {}
   };
 
-  class CeresAutoDiffOptimizer : public CeresBaseOptimizer {
+  class CeresAutoDiffOptimizer : public BaseOptimizer {
   public:
     CeresAutoDiffOptimizer(Eigen::ArrayXd gt, Eigen::ArrayXd est, double focal,
                            double baseline)
@@ -87,6 +89,9 @@ namespace kbd {
       options_.linear_solver_type = linear_solver_type;
     };
 
+    void set_init_simplex(const Eigen::Vector3d& initial_guess) override {
+    } // just for inheritance
+
     void set_opt_initial_params(const std::array<double, 3>& initial_params) {
       initial_params_ = initial_params;
     }
@@ -95,7 +100,7 @@ namespace kbd {
       options_.num_threads = n_threads;
     }
 
-    Eigen::Vector3d run() override {
+    Eigen::Vector3d optimize() override {
       ceres::Problem problem;
       auto loss_function = ceres::HuberLoss(1.0);
       problem.AddResidualBlock(
@@ -124,7 +129,7 @@ namespace kbd {
     ceres::Solver::Options options_;
   };
 
-  class CeresNumericalDiffOptimizer : public CeresBaseOptimizer {
+  class CeresNumericalDiffOptimizer : public BaseOptimizer {
   public:
     CeresNumericalDiffOptimizer(Eigen::ArrayXd gt, Eigen::ArrayXd est,
                                 double focal, double baseline)
@@ -164,6 +169,9 @@ namespace kbd {
       double baseline_;
     };
 
+    void set_init_simplex(const Eigen::Vector3d& initial_guess) override {
+    } // just for inheritance
+
     void set_ceres_options(int max_num_iterations,
                            ceres::LinearSolverType linear_solver_type) {
       options_.max_num_iterations = max_num_iterations;
@@ -178,7 +186,7 @@ namespace kbd {
       options_.num_threads = n_threads;
     }
 
-    Eigen::Vector3d run() override {
+    Eigen::Vector3d optimize() override {
       ceres::Problem problem;
       auto loss_function =
           new ceres::HuberLoss(1.0); // Huber loss to manage outliers
@@ -211,100 +219,129 @@ namespace kbd {
     ceres::Solver::Options options_;
   };
 
-  template <typename T, int Dimension = Eigen::Dynamic>
-  class NelderMeadOptimizer {
+  template <typename Scalar, int Dim = Eigen::Dynamic>
+  class NelderMeadOptimizer : public BaseOptimizer {
   public:
-    using Vector = Eigen::Matrix<T, Dimension, 1>;
-    using Matrix = Eigen::Matrix<T, Dimension, Eigen::Dynamic>;
+    using Vec = Eigen::Vector3d;
 
-    NelderMeadOptimizer(std::function<T(const Vector&)> objective_func,
-                        const Vector& initial_guess, T alpha = 1.0,
-                        T gamma = 2.0, T rho = 0.5, T sigma = 0.5)
-        : objective_func_(objective_func), alpha_(alpha), gamma_(gamma),
-          rho_(rho), sigma_(sigma) {
+    NelderMeadOptimizer(std::function<Scalar(const Vec&)> func,
+                        Scalar alpha = 1.0, Scalar gamma = 2.0,
+                        Scalar rho = 0.5, Scalar sigma = 0.5,
+                        int max_iter = 10000, Scalar tol = 1e-6)
+        : obj_func_(func), alpha_(alpha), gamma_(gamma), rho_(rho),
+          sigma_(sigma), max_iter_(max_iter), tol_(tol) {}
+
+    void set_init_simplex(const Vec& initial_guess) override {
       int n = initial_guess.size();
-      simplex_.resize(Dimension == Eigen::Dynamic ? n : Dimension, n + 1);
-      simplex_.col(n) = initial_guess;
-
-      for (int i = 0; i < n; ++i) {
-        simplex_.col(i) = initial_guess;
-        simplex_(i, i) +=
-            (initial_guess(i) != 0) ? 0.05 * initial_guess(i) : 0.00025;
-      }
-
-      fvalues_.resize(n + 1);
+      simplex_.resize(n + 1);
       for (int i = 0; i <= n; ++i) {
-        fvalues_(i) = objective_func_(simplex_.col(i));
+        simplex_[i] = initial_guess;
+        if (i < n) {
+          simplex_[i](i) +=
+              (initial_guess(i) != 0) ? 0.05 * initial_guess(i) : 0.00025;
+        }
       }
     }
 
-    Vector optimize(int max_iterations = 10000, T tol = 1e-6) {
-      int n = simplex_.rows();
-      int iter = 0;
+    Vec optimize() override {
+      auto n = simplex_[0].size();
+      std::vector<Scalar> f_values(simplex_.size());
 
-      while (iter < max_iterations) {
-        sort_simplex();
-        if (std::abs(fvalues_(n) - fvalues_(0)) < tol) {
+      cost_iter(f_values);
+
+      for (int iter = 0; iter < max_iter_; ++iter) {
+        std::sort(simplex_.begin(), simplex_.end(),
+                  [&](const Vec& a, const Vec& b) {
+                    return obj_func_(a) < obj_func_(b);
+                  });
+
+        cost_iter(f_values);
+
+        if (check_convergence(f_values)) {
+          fmt::print("Convergence achieved after {} iterations.\n", iter);
           break;
         }
 
-        // compute centroid of all points except the worst
-        Vector centroid = simplex_.leftCols(n).rowwise().mean();
-        Vector reflected = centroid + alpha_ * (centroid - simplex_.col(n));
-        T f_reflected = objective_func_(reflected);
+        // Calculate centroid of all but worst point
+        Vec centroid = Vec::Zero(n);
+        for (int i = 0; i < simplex_.size() - 1; ++i) {
+          centroid += simplex_[i];
+        }
+        centroid /= (simplex_.size() - 1);
 
-        if (f_reflected < fvalues_(0)) {
-          Vector expanded = centroid + gamma_ * (reflected - centroid);
-          T f_expanded = objective_func_(expanded);
-          if (f_expanded < f_reflected) {
-            simplex_.col(n) = expanded;
-            fvalues_(n) = f_expanded;
+        // Reflection
+        Vec worst = simplex_.back();
+        Vec reflected = centroid + alpha_ * (centroid - worst);
+        Scalar reflected_val = obj_func_(reflected);
+
+        if (reflected_val < obj_func_(simplex_[0])) {
+          // Expansion
+          Vec expanded = centroid + gamma_ * (reflected - centroid);
+          if (obj_func_(expanded) < reflected_val) {
+            simplex_.back() = expanded;
           } else {
-            simplex_.col(n) = reflected;
-            fvalues_(n) = f_reflected;
+            simplex_.back() = reflected;
           }
-        } else if (f_reflected < fvalues_(n - 1)) {
-          simplex_.col(n) = reflected;
-          fvalues_(n) = f_reflected;
+        } else if (reflected_val < obj_func_(worst)) {
+          // accept reflection
+          simplex_.back() = reflected;
         } else {
-          Vector contracted = centroid + rho_ * (simplex_.col(n) - centroid);
-          T f_contracted = objective_func_(contracted);
-          if (f_contracted < fvalues_(n)) {
-            simplex_.col(n) = contracted;
-            fvalues_(n) = f_contracted;
+          // contraction
+          Vec contracted = centroid + rho_ * (worst - centroid);
+          if (obj_func_(contracted) < obj_func_(worst)) {
+            simplex_.back() = contracted;
           } else {
             // shrink
-            for (int i = 1; i < n; ++i) {
-              simplex_.col(i) = simplex_.col(0) +
-                                sigma_ * (simplex_.col(i) - simplex_.col(0));
-              fvalues_(i) = objective_func_(simplex_.col(i));
+            for (int i = 1; i < simplex_.size(); ++i) {
+              simplex_[i] = simplex_[0] + sigma_ * (simplex_[i] - simplex_[0]);
             }
           }
         }
-        iter++;
       }
-      return simplex_.col(0);
+      return simplex_[0];
     }
 
   private:
-    Matrix simplex_;
-    Eigen::VectorXd fvalues_;
-    T alpha_, gamma_, rho_, sigma_;
-    std::function<T(const Vector&)> objective_func_;
-
-    void sort_simplex() {
-      std::vector<int> idx(fvalues_.size());
-      std::iota(idx.begin(), idx.end(), 0);
-      std::sort(idx.begin(), idx.end(),
-                [&](int i, int j) { return fvalues_(i) < fvalues_(j); });
-
-      Matrix sorted_simplex = simplex_;
-      for (int i = 0; i < idx.size(); ++i) {
-        simplex_.col(i) = sorted_simplex.col(idx[i]);
-        fvalues_(i) = fvalues_(idx[i]);
+    void cost_iter(std::vector<Scalar>& f_values) {
+      for (int i = 0; i < simplex_.size(); ++i) {
+        f_values[i] = obj_func_(simplex_[i]);
       }
     }
+
+    bool check_convergence(const std::vector<Scalar>& f_values) {
+      if (f_values.empty())
+        return true;
+
+      Scalar mu = std::accumulate(f_values.begin(), f_values.end(), Scalar(0)) /
+                  f_values.size();
+      Scalar sq_sum = std::inner_product(f_values.begin(), f_values.end(),
+                                         f_values.begin(), Scalar(0));
+      Scalar sigma = std::sqrt(sq_sum / f_values.size() - mu * mu);
+      return sigma < tol_;
+    };
+
+  private:
+    std::vector<Vec> simplex_;
+    Scalar alpha_, gamma_, rho_, sigma_;
+    int max_iter_;
+    Scalar tol_; // Tolerance for stopping criterion
+    std::function<Scalar(const Vec&)> obj_func_;
   };
+
+  template <typename Scalar>
+  Scalar cost_func_mse(const Eigen::Vector3d& params, const Eigen::ArrayXd& X,
+                       const Eigen::ArrayXd& Y, Scalar focal, Scalar baseline) {
+    Scalar k = params(0);
+    Scalar delta = params(1);
+    Scalar b = params(2);
+    // Call the templated basic_model function
+    Eigen::Array<Scalar, Eigen::Dynamic, 1> pred =
+        basic_model(X, focal, baseline, k, delta, b);
+    Eigen::Array<Scalar, Eigen::Dynamic, 1> residuals = Y - pred;
+    Scalar mse = residuals.square().mean();
+
+    return mse;
+  }
 
   class JointLinearSmoothingOptimizer {
   public:
@@ -319,6 +356,10 @@ namespace kbd {
           apply_global_(apply_global), diff_type_(diff_type) {
       fb_ = focal * baseline;
       initial_params_ = {1.0, 0.01, 10.0};
+    }
+
+    void set_optimizer_type(OptimizerDiffType type) {
+      diff_type_ = type;
     }
 
     Eigen::VectorXd segment() {
@@ -336,20 +377,31 @@ namespace kbd {
         return Eigen::VectorXd();
       }
 
-      std::unique_ptr<CeresBaseOptimizer> kbd_base_optimizer;
+      std::unique_ptr<BaseOptimizer> kbd_base_optimizer;
 
       switch (diff_type_) {
       case AUTO_DIFF:
         kbd_base_optimizer = std::make_unique<CeresAutoDiffOptimizer>(
             kbd_y_, kbd_x_, focal_, baseline_);
+        break;
       case NUMERICAL_DIFF:
         kbd_base_optimizer = std::make_unique<CeresNumericalDiffOptimizer>(
             kbd_y_, kbd_x_, focal_, baseline_);
+        break;
+      case NELDER_MEAD: {
+        kbd_base_optimizer = std::make_unique<NelderMeadOptimizer<double>>(
+            std::bind(cost_func_mse<double>, std::placeholders::_1, kbd_x_,
+                      kbd_y_, focal_, baseline_));
+        Eigen::Vector3d ig(3);
+        ig << initial_params_[0], initial_params_[1], initial_params_[2];
+        kbd_base_optimizer->set_init_simplex(ig);
+        break;
+      }
       default:
         std::cerr << "unsupported differential type !" << std::endl;
       }
 
-      auto res = kbd_base_optimizer->run();
+      auto res = kbd_base_optimizer->optimize();
       return res;
     }
 

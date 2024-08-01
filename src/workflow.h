@@ -18,6 +18,8 @@
 
 #include "config.h"
 #include "table.h"
+#include "optimizer.h"
+
 #include <string>
 #include <array>
 #include <Eigen/Core>
@@ -33,8 +35,10 @@ namespace kbd {
     void preprocessing(const std::string& file_path,
                        const std::string& csv_path, const Config& config,
                        const JointSmoothArguments& args);
-    void optimize();
-    void optimize_and_search(const std::array<int, 2>& search_range);
+    void optimize(OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
+    void optimize_and_search(
+        const std::array<int, 2>& search_range,
+        OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
     void extend_matrix();
     Eigen::Matrix<double, 5, 5> extend_matrix(const Eigen::Vector2d& lm1,
                                               const Eigen::Vector3d& kbd,

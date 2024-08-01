@@ -835,7 +835,6 @@ if __name__ == "__main__":
 
     df, focal, baseline = preprocessing(root_dir, tablepath)
     eval_res, acceptance_rate = eval(df)
-    print(f"acceptance rate is {acceptance_rate}")
 
     if pass_or_not(df):
         print("passed!")

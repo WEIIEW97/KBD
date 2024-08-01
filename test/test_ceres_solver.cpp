@@ -95,7 +95,7 @@ int main() {
 
   // Create and run the optimizer
   kbd::CeresAutoDiffOptimizer optimizer(gt, est, focal, baseline);
-  auto kbd_params = optimizer.run();
+  auto kbd_params = optimizer.optimize();
 
   for(const auto& p:kbd_params) {
     std::cout << p << "\n";
