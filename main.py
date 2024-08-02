@@ -4,23 +4,17 @@ import numpy as np
 from KBD.apis import (
     apply_transformation_linear_parallel,
     apply_transformation_linear_vectorize_parallel,
-    generate_parameters,
     generate_parameters_linear,
     generate_parameters_linear_search,
-    generate_parameters_trf,
 )
 from KBD.constants import *
-from KBD.eval import check_monotonicity, eval
+from KBD.eval import check_monotonicity, eval, ratio_evaluate
 from KBD.helpers import parallel_copy, preprocessing, sampling_strategy_criterion
 from KBD.utils import (
-    generate_global_KBD_data,
-    generate_linear_KBD_data,
     save_arrays_to_json,
     save_arrays_to_txt,
     save_arrays_to_txt2,
 )
-
-DISP_VAL_MAX_UINT16 = 32767
 
 
 if __name__ == "__main__":
@@ -76,7 +70,10 @@ if __name__ == "__main__":
             # sampling_strategy_criterion(root_dir, tablepath, tablepath.replace("depthquality","sampling-criterion"))
 
             df, focal, baseline = preprocessing(file_path, table_path)
-
+            trial = ratio_evaluate(0.5, df)
+            if not trial:
+                print("ratio bound evaluation test failed.")
+                print("will not push to further process ...")
             eval_res, acceptance_rate = eval(df)
             print(f"acceptance rate is {acceptance_rate}")
 

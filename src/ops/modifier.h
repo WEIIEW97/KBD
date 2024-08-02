@@ -22,6 +22,7 @@
 #include <Eigen/Dense>
 #include <array>
 #include <fmt/core.h>
+#include <type_traits>
 
 #ifdef USE_OPENMP
 #include <omp.h>
@@ -42,11 +43,14 @@ namespace kbd {
     }
 
     template <typename Derived>
-    ndArray<uint16_t>
-    modify_linear(const ndArray<Derived>& m, double focal, double baseline,
-                  const Eigen::Matrix<double, 5, 5>& param_matrix,
-                  const std::array<int, 2>& disjoint_depth_range,
-                  double compensate_dist, double scaling_factor) {
+    auto modify_linear(const ndArray<Derived>& m, double focal, double baseline,
+                       const Eigen::Matrix<double, 5, 5>& param_matrix,
+                       const std::array<int, 2>& disjoint_depth_range,
+                       double compensate_dist, double scaling_factor) {
+
+      static_assert(std::is_arithmetic<Derived>::value,
+                    "Derived should be an arithmetic type.");
+
       double fb = focal * baseline;
       ndArray<double> out(m.rows(), m.cols());
       out.setZero();
@@ -74,11 +78,15 @@ namespace kbd {
           (m_double >= ub + compensate_dist * scaling_factor)
               .select(m_double, 0.0);
 
-      // Convert and clamp the final results to uint16_t using unaryExpr
-      auto clamp_cast = [](double v) {
-        return static_cast<uint16_t>(std::clamp(v, 0.0, 65535.0));
-      };
-      return out.unaryExpr(clamp_cast);
+      if constexpr (std::is_same<Derived, double>::value) {
+        return out;
+      } else { // Convert and clamp the final results to uint16_t using
+               // unaryExpr
+        auto clamp_cast = [](double v) {
+          return static_cast<uint16_t>(std::clamp(v, 0.0, 65535.0));
+        };
+        return out.unaryExpr(clamp_cast);
+      }
     }
 
     template <typename Derived>
@@ -105,7 +113,7 @@ namespace kbd {
       }
       fmt::print("Transformating data done ...\n");
     }
-    
+
     void parallel_copy(const std::string& src, const std::string& dst,
                        const Config& configs);
     void parallel_transform(const std::string& path,

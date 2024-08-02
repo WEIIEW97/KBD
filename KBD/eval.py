@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error, r2_score
 
-from .constants import GT_DIST_NAME, GT_ERROR_NAME
+from .constants import *
 from .core import modify_linear_vectorize2
 
 from .models import linear_KBD_piecewise_func
@@ -45,6 +45,26 @@ def pass_or_not(df: pd.DataFrame):
             if not (quali < 0.04).all():
                 return False
     return True
+
+
+def ratio_evaluate(alpha: float, df: pd.DataFrame, min_offset: int = 500):
+    z = df[GT_DIST_NAME].values
+    focal = df[FOCAL_NAME].values[0]
+    baseline = df[BASLINE_NAME].values[0]
+    d = focal * baseline / z
+    indices = np.where(df[GT_DIST_NAME] >= min_offset)
+    reciprocal_d = 1 / d
+    ratio = 1 / (1 - alpha * reciprocal_d) - 1
+    df["bound_ratio"] = ratio
+    err_rate = np.abs(df[GT_ERROR_NAME] / df[GT_DIST_NAME])
+    df["error_rate"] = err_rate
+    df["delta"] = ratio - err_rate
+    ratio = ratio[indices]
+    err_rate = np.array(err_rate)[indices]
+    if ((ratio - err_rate) < 0).any():
+        return False
+    else:
+        return True
 
 
 def evaluate_target(

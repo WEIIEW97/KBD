@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "table.h"
+#include "array.h"
 #include "optimizer.h"
 
 #include <string>
@@ -47,14 +48,14 @@ namespace kbd {
                Eigen::Matrix<double, 5, 5>>
     pivot();
     std::tuple<std::map<double, double>, double> eval(const Config& config);
-    bool pass_or_not(const Config& config, const JointSmoothArguments& args);
+    bool ratio_evaluate(double alpha, int min_offset, const Config& config);
     double get_focal_val() const;
     double get_baseline_val() const;
 
   private:
-    void evaluate_target(double& mse, Eigen::Vector<double, 5>& z_error_rate,
-                         const Eigen::Matrix<double, 5, 5>& param_matrix,
-                         const std::array<int, 2>& rg);
+    std::tuple<double, Eigen::Vector<double, 6>>
+    evaluate_target(const Eigen::Matrix<double, 5, 5>& param_matrix,
+                    const std::array<int, 2>& rg);
     void lazy_compute_ref_z();
 
   private:
@@ -64,7 +65,7 @@ namespace kbd {
     Eigen::Vector2d lm1_, lm2_;
     Eigen::Vector3d kbd_res_;
     std::array<int, 2> disjoint_depth_range_ = {0};
-    Eigen::Vector<double, 5> ref_z_;
+    ndArray<double> ref_z_;
     uint16_t disp_val_max_uint16_;
     int step_ = 50; // can be modified accordingly
     std::array<int, 6> metric_points_ = JointSmoothArguments().metric_points;

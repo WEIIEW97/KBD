@@ -17,6 +17,7 @@
 #include "workflow.h"
 
 #include "utils.h"
+#include "ops/modifier.h"
 #include <arrow/api.h>
 #include <arrow/compute/api.h>
 #include <cfloat>
@@ -223,58 +224,55 @@ namespace kbd {
     return std::make_tuple(eval_res, acceptance);
   }
 
-  bool LinearWorkflow::pass_or_not(const Config& config,
-                                   const JointSmoothArguments& args) {
-    // auto metric_points = args.metric_points;
-    // auto thresholds = args.thresholds;
+  bool LinearWorkflow::ratio_evaluate(double alpha, int min_offset,
+                                      const Config& config) {
+    auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
+        trimmed_df_->GetColumnByName(config.GT_DIST_NAME)->chunk(0));
+    auto error_arrow_array = std::static_pointer_cast<arrow::DoubleArray>(
+        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME)->chunk(0));
+    auto f = std::static_pointer_cast<arrow::DoubleArray>(
+                 trimmed_df_->GetColumnByName(config.FOCAL_NAME)->chunk(0))
+                 ->Value(0);
+    auto b = std::static_pointer_cast<arrow::DoubleArray>(
+                 trimmed_df_->GetColumnByName(config.BASELINE_NAME)->chunk(0))
+                 ->Value(0);
 
-    // auto gt_error = trimmed_df_->GetColumnByName(config.GT_ERROR_NAME);
-    // auto gt_dist = trimmed_df_->GetColumnByName(config.GT_DIST_NAME);
+    auto sz = z_arrow_array->length();
 
-    // auto error_rate_result = arrow::compute::Divide(gt_error, gt_dist);
-    // if (!error_rate_result.ok()) {
-    //     std::cerr << "Error calculating error rates: " <<
-    //     error_rate_result.status() << std::endl; return false;
-    // }
-    // auto error_rate = error_rate_result.ValueOrDie();
+    for (int i = 0; i < sz; ++i) {
+      double z_true = static_cast<double>(z_arrow_array->Value(i));
+      if (z_true < min_offset)
+        continue;
 
-    // for (size_t i = 0; i < metric_points.size(); ++i) {
-    //     auto metric = metric_points[i];
-    //     auto threshold = thresholds[i];
+      double d_value = f * b / z_true;
+      double err_rate_value = std::abs(error_arrow_array->Value(i) / z_true);
+      double ratio_value = 1 / (1 - alpha * (1 / d_value)) - 1;
 
-    //     // Filter rows where GT_DIST_NAME equals metric
-    //     auto metric_filter = arrow::compute::equal(gt_dist->chunk(0),
-    //     arrow::Datum(metric)); if (!metric_filter.ok()) {
-    //         std::cerr << "Error applying metric filter: " <<
-    //         metric_filter.status() << std::endl; return false;
-    //     }
-
-    //     auto filtered_table = arrow::compute::Filter(trimmed_df_,
-    //     metric_filter.ValueOrDie()).ValueOrDie(); auto condition =
-    //     arrow::compute::less(filtered_table->GetColumnByName(config.ABS_ERROR_RATE_NAME),
-    //     arrow::Datum(threshold)); if (!condition.ok()) {
-    //         std::cerr << "Error applying condition: " << condition.status()
-    //         << std::endl; return false;
-    //     }
-
-    //     if
-    //     (!arrow::compute::All(condition.ValueOrDie()).ValueOrDie()->Equals(arrow::Datum(true)))
-    //     {
-    //         return false;
-    //     }
-    // }
+      if (ratio_value - err_rate_value < 0) {
+        return false;
+      }
+    }
     return true;
   }
 
-  void LinearWorkflow::evaluate_target(
-      double& mse, Eigen::Vector<double, 5>& z_error_rate,
+  std::tuple<double, Eigen::Vector<double, 6>> LinearWorkflow::evaluate_target(
       const Eigen::Matrix<double, 5, 5>& param_matrix,
-      const std::array<int, 2>& rg) {}
+      const std::array<int, 2>& rg) {
+    auto z_after = ops::modify_linear<double>(ref_z_, focal_, baseline_,
+                                              param_matrix, rg, cd_, sf_);
+    auto z_error_rate =
+        ((z_after.array() - ref_z_.array()) / ref_z_.array()).abs();
+    auto mse = (z_after - ref_z_).array().square().mean();
+
+    return {mse, z_error_rate};
+  }
 
   void LinearWorkflow::lazy_compute_ref_z() {
-    ndArray<int> z_array(1, metric_points_.size());
+    ndArray<double> z_array(metric_points_.size(), 1);
     z_array << metric_points_[0], metric_points_[1], metric_points_[2],
         metric_points_[3], metric_points_[4], metric_points_[5];
+
+    ref_z_ = z_array;
   }
 
   double LinearWorkflow::get_focal_val() const { return this->focal_; }

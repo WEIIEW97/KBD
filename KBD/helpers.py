@@ -8,33 +8,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from .constants import (
-    ANCHOR_POINT,
-    AVG_DISP_NAME,
-    AVG_DIST_NAME,
-    BASLINE_NAME,
-    FOCAL_NAME,
-    GT_DIST_NAME,
-    GT_DISP_NAME,
-    H,
-    MAPPED_PAIR_DICT,
-    MAPPED_PAIR_DICT_DEBUG,
-    MEDIAN_DISP_NAME,
-    MEDIAN_DIST_NAME,
-    SUBFIX,
-    W,
-    GT_DISP_ERROR_NAME,
-)
+from .constants import *
 from .utils import load_raw, read_table
-
-
-def helper_save_data_to_csv(path: str, table_path: str, save_path: str):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    df = read_table(table_path, pair_dict=MAPPED_PAIR_DICT)
-    _ = map_table(df, mean_dists)
-    df.to_csv(save_path)
-
 
 def crop_center(array: np.ndarray, crop_size: Union[tuple, list]):
     if array.ndim != 2:
@@ -165,7 +140,7 @@ def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
     focal = df[FOCAL_NAME].iloc[0]  # assume focal value is the same
     baseline = df[BASLINE_NAME].iloc[0]  # assume basline value is the same
 
-    focal *= 1.6 # very dirty hack
+    focal *=  N9_FOCAL_MULTIPLIER# very dirty hack
     df[AVG_DISP_NAME] = focal * baseline / df[AVG_DIST_NAME]
     # df[GT_DISP_NAME] = focal * baseline / df[GT_DIST_NAME]
     # df[GT_DISP_ERROR_NAME] = df[GT_DISP_NAME] - df[AVG_DISP_NAME]

@@ -172,6 +172,26 @@ def pass_or_not(df: pd.DataFrame):
     return True
 
 
+def ratio_evaluate(alpha: float, df: pd.DataFrame, min_offset: int = 500):
+    z = df[GT_DIST_NAME].values
+    focal = df[FOCAL_NAME].values[0]
+    baseline = df[BASLINE_NAME].values[0]
+    d = focal * baseline / z
+    indices = np.where(df[GT_DIST_NAME] >= min_offset)
+    reciprocal_d = 1 / d
+    ratio = 1 / (1 - alpha * reciprocal_d) - 1
+    df["bound_ratio"] = ratio
+    err_rate = np.abs(df[GT_ERROR_NAME] / df[GT_DIST_NAME])
+    df["abs_error_rate"] = err_rate
+    df["delta"] = ratio - err_rate
+    ratio = ratio[indices]
+    err_rate = np.array(err_rate)[indices]
+    if ((ratio - err_rate) < 0).any():
+        return False
+    else:
+        return True
+
+
 def evaluate_target(
     focal,
     baseline,
@@ -819,6 +839,7 @@ if __name__ == "__main__":
     camera_type = "N9LAZG24GN0130"
     table_name = "depthquality_2024-07-25.xlsx"
     apply_global = False
+    bound_ratio_alpha = 0.7
     global_judge = "global" if apply_global else "local"
     optimizer_judge = "nelder-mead" if engine == "Nelder-Mead" else "trust-region"
     print(f"processing {camera_type} now with {table_name} ...")
@@ -834,23 +855,21 @@ if __name__ == "__main__":
     )
 
     df, focal, baseline = preprocessing(root_dir, tablepath)
+    trial = ratio_evaluate(bound_ratio_alpha, df)
+    if not trial:
+        print("Ratio bound evaluation test failed.")
+        print("Will not push to further process ...")
+        raise ValueError("Ratio-Bound test failed!")
+
     eval_res, acceptance_rate = eval(df)
 
-    if pass_or_not(df):
-        print("passed!")
-    else:
-        print("failed!")
-
-    if (not pass_or_not(df=df)) and (acceptance_rate < EVAL_WARNING_RATE):
-        print("*********** ERROR *************")
+    if acceptance_rate < EVAL_WARNING_RATE:
+        print("*********** WARNING *************")
         print(
             f"Please be really cautious since the acceptance rate is {acceptance_rate},"
         )
         print("This may not be the ideal data to be tackled with.")
-        print("The original data presicion did not pass ... ")
-        print("Due to the compilance of this program, we have to shut down generation.")
-        print("*********** END OF ERROR *************")
-        raise ValueError("Program stopped .")
+        print("*********** END OF WARNING *************")
     print("Begin to generate parameters with line searching...")
 
     matrix, best_range, best_z_err = generate_parameters_linear_search(

@@ -50,9 +50,9 @@ namespace kbd {
   ArrowTableReader::get_column_names(bool verbose) {
     std::shared_ptr<arrow::Schema> schema = df_->schema();
     if (verbose) {
-      std::cout << "Column Names: " << std::endl;
+      fmt::print("Column names: \n");
       for (const auto& field : schema->fields()) {
-        std::cout << field->name() << "\n";
+        fmt::print("{}\n", field->name());
       }
     }
     return schema;
