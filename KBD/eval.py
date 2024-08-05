@@ -67,6 +67,13 @@ def ratio_evaluate(alpha: float, df: pd.DataFrame, min_offset: int = 500):
         return True
 
 
+def first_check(df: pd.DataFrame, max_thr: float=0.07, mean_thr: float=0.05):
+    err_rate = np.abs(df[GT_ERROR_NAME] / df[GT_DIST_NAME])
+    if np.max(err_rate) < max_thr and 0 <= np.mean(err_rate) < mean_thr:
+        return True
+    else:
+        return False
+
 def evaluate_target(
     focal,
     baseline,

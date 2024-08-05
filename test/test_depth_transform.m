@@ -4,20 +4,23 @@ function  test_depth_transform()
 h=480;
 w=640;
 
-after_path = "D:\william\data\KBD\0723\N09ALC247H0116\image_data_transformed_linear_local_scale1.6\1000_N09ALC247H0116_2024_07_23_20_44_30\DEPTH\raw\Depth-2024-07-23-20-44-31-022-1-005654-1721738670329147.raw";
-before_path = "D:\william\data\KBD\0723\N09ALC247H0116\image_data\1000_N09ALC247H0116_2024_07_23_20_44_30\DEPTH\raw\Depth-2024-07-23-20-44-31-022-1-005654-1721738670329147.raw";
+after_path = "/Users/williamwei/Data/KBD/20240803/N9LAZG24GN0197/image_data_transformed_linear_local_scale1.6/1200_N9LAZG24GN0197_2024_08_02_21_18_46/DEPTH/raw/Depth-2024-08-02-21-18-46-200-1-005435-1722604725641614.raw";
+before_path = "/Users/williamwei/Data/KBD/20240803/N9LAZG24GN0197/image_data/1200_N9LAZG24GN0197_2024_08_02_21_18_46/DEPTH/raw/Depth-2024-08-02-21-18-46-200-1-005435-1722604725641614.raw";
 
 before = load_raw(before_path, h, w);
 after = load_raw(after_path, h, w);
+
+d = delta_diff(before, after);
+
 % Display the images
 figure(1);
-imagesc(before, [800, 1200]);
+imagesc(before, [1000, 1300]);
 colormap('default'); % You can choose any appropriate colormap
 colorbar;
 title('Before');
 
 figure(2);
-imagesc(after, [800, 1200]);
+imagesc(after, [1000, 1300]);
 colormap('default');
 colorbar;
 title('After');
@@ -37,4 +40,9 @@ function data = load_raw(filename, h, w)
     
     % Close the file
     fclose(fid);
+end
+
+function delta = delta_diff(a, b)
+    diff = a - b;
+    delta = sum(diff,"all");
 end

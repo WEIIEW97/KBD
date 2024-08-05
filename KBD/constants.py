@@ -20,6 +20,7 @@ GT_ERROR_NAME = "absolute_error"
 GT_DISP_ERROR_NAME = "absolute_disp_error"
 FOCAL_NAME = "focal"
 BASLINE_NAME = "baseline"
+KBD_PRED_NAME = "kbd_pred"
 
 OUT_PARAMS_FILE_NAME = "KBD_model_fitted_params.json"
 LINEAR_OUT_PARAMS_FILE_NAME = "linear_" + OUT_PARAMS_FILE_NAME

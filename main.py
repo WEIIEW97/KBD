@@ -8,7 +8,7 @@ from KBD.apis import (
     generate_parameters_linear_search,
 )
 from KBD.constants import *
-from KBD.eval import check_monotonicity, eval, ratio_evaluate
+from KBD.eval import check_monotonicity, eval, ratio_evaluate, first_check
 from KBD.helpers import parallel_copy, preprocessing, sampling_strategy_criterion
 from KBD.utils import (
     save_arrays_to_json,
@@ -22,28 +22,29 @@ if __name__ == "__main__":
     compensate_dist = 400
     scaling_factor = 10
 
-    root_dir = "/home/william/extdisk/data/KBD_analysis"
+    root_dir = "/Users/williamwei/Data/KBD/20240803"
     # camera_types = [
     #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     # ]
     disjoint_depth_ranges = [600, 3000]
-    engine = "Nelder-Mead"
-    apply_global = False
-    genres = [
-        f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
-    ]
-    for genre in genres:
+    engine = "Trust-Region"
+    # apply_global = False
+    # genres = [
+    #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
+    # ]
+    # for genre in genres:
+    for apply_global in [True, False]:
         # if apply_global:
         #     continue
-        entry_dir = os.path.join(root_dir, genre)
+        # entry_dir = os.path.join(root_dir, genre)
         camera_types = [
-            f for f in os.listdir(entry_dir) if os.path.isdir(os.path.join(entry_dir, f))
+            f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
         ]
         for camera_type in camera_types:
-            # if camera_type != "N09ALC247H0046":
-            #     continue
+            if camera_type == "N9LAZG24GN0294":
+                continue
             print(f"begin to process {camera_type}")
-            base_path = os.path.join(entry_dir, camera_type)
+            base_path = os.path.join(root_dir, camera_type)
             file_path = os.path.join(base_path, "image_data")
             table_name = [
                 f
@@ -70,57 +71,77 @@ if __name__ == "__main__":
             # sampling_strategy_criterion(root_dir, tablepath, tablepath.replace("depthquality","sampling-criterion"))
 
             df, focal, baseline = preprocessing(file_path, table_path)
-            trial = ratio_evaluate(0.5, df)
-            if not trial:
-                print("ratio bound evaluation test failed.")
-                print("will not push to further process ...")
-            eval_res, acceptance_rate = eval(df)
-            print(f"acceptance rate is {acceptance_rate}")
+            if not first_check(df):
+                trial = ratio_evaluate(0.5, df)
+                if not trial:
+                    print("ratio bound evaluation test failed.")
+                    print("will not push to further process ...")
+                eval_res, acceptance_rate = eval(df)
+                print(f"acceptance rate is {acceptance_rate}")
 
-            # matrix = generate_parameters_linear(
-            #     df,
-            #     focal,
-            #     baseline,
-            #     save_path=base_path,
-            #     disjoint_depth_range=disjoint_depth_ranges,
-            #     compensate_dist=compensate_dist,
-            #     scaling_factor=scaling_factor,
-            #     apply_global=apply_global,
-            #     plot=True,
-            # )
+                # matrix = generate_parameters_linear(
+                #     df,
+                #     focal,
+                #     baseline,
+                #     save_path=base_path,
+                #     disjoint_depth_range=disjoint_depth_ranges,
+                #     compensate_dist=compensate_dist,
+                #     scaling_factor=scaling_factor,
+                #     apply_global=apply_global,
+                #     plot=True,
+                # )
 
-            matrix, best_range, best_z_err = generate_parameters_linear_search(
-                df,
-                focal,
-                baseline,
-                save_path=os.path.join(base_path, optimizer_judge),
-                search_range=(600, 1100),
-                engine=engine,
-                compensate_dist=compensate_dist,
-                scaling_factor=scaling_factor,
-                apply_global=apply_global,
-                plot=True,
-            )
+                matrix, best_range, best_z_err = generate_parameters_linear_search(
+                    df,
+                    focal,
+                    baseline,
+                    save_path=os.path.join(base_path, optimizer_judge),
+                    search_range=(600, 1100),
+                    engine=engine,
+                    compensate_dist=compensate_dist,
+                    scaling_factor=scaling_factor,
+                    apply_global=apply_global,
+                    plot=True,
+                )
 
-            range_raw = best_range
-            extra_range = [
-                range_raw[0] - compensate_dist,
-                range_raw[0],
-                range_raw[1],
-                range_raw[1] + compensate_dist * scaling_factor,
-            ]
-            disp_nodes_fp32 = focal * baseline / (np.array(extra_range))
-            disp_nodes_uint16 = (disp_nodes_fp32 * 64).astype(np.uint16)
-            disp_nodes_uint16 = np.sort(disp_nodes_uint16)
-            disp_nodes_uint16 = np.append(disp_nodes_uint16, DISP_VAL_MAX_UINT16)
+                range_raw = best_range
+                extra_range = [
+                    range_raw[0] - compensate_dist,
+                    range_raw[0],
+                    range_raw[1],
+                    range_raw[1] + compensate_dist * scaling_factor,
+                ]
+                disp_nodes_fp32 = focal * baseline / (np.array(extra_range))
+                disp_nodes_uint16 = (disp_nodes_fp32 * 64).astype(np.uint16)
+                disp_nodes_uint16 = np.sort(disp_nodes_uint16)
+                disp_nodes_uint16 = np.append(disp_nodes_uint16, DISP_VAL_MAX_UINT16)
 
-            matrix_param_by_disp = matrix[::-1, :]
-            # save_arrays_to_txt(save_params_path, disp_nodes_uint16, matrix_param_by_disp)
+                matrix_param_by_disp = matrix[::-1, :]
+                # save_arrays_to_txt(save_params_path, disp_nodes_uint16, matrix_param_by_disp)
 
-            save_arrays_to_json(
-                save_params_path, disp_nodes_uint16, matrix_param_by_disp
-            )
-            save_arrays_to_txt2(save_txt_path, best_range, best_z_err)
+                save_arrays_to_json(
+                    save_params_path, disp_nodes_uint16, matrix_param_by_disp
+                )
+                save_arrays_to_txt2(save_txt_path, best_range, best_z_err)
+            else:
+                default_range = np.array([600, 3000])
+                extra_range = [
+                    default_range[0] - compensate_dist,
+                    default_range[0],
+                    default_range[1],
+                    default_range[1] + compensate_dist * scaling_factor,
+                ]
+                disp_nodes_fp32 = focal * baseline / (np.array(extra_range))
+                disp_nodes_uint16 = (disp_nodes_fp32 * 64).astype(np.uint16)
+                disp_nodes_uint16 = np.sort(disp_nodes_uint16)
+                disp_nodes_uint16 = np.append(disp_nodes_uint16, DISP_VAL_MAX_UINT16)
+
+                default_param = np.array([1, 0, 0, 1, 0])
+                matrix = np.tile(default_param, (5, 1))
+                matrix_param_by_disp = matrix[::-1, :]
+                save_arrays_to_json(
+                    save_params_path, disp_nodes_uint16, matrix_param_by_disp
+                )
         # judgement = check_monotonicity(0, 5000, focal, baseline, matrix, [601, 3000], compensate_dist, scaling_factor)
         # if judgement:
         #     print("Optimization task succeeded!")
