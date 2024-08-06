@@ -7,8 +7,11 @@ EPSILON = 1e-6
 UINT16_MIN = 0
 UINT16_MAX = 65535
 DISP_VAL_MAX_UINT16 = 32767
+EVAL_WARNING_RATE = 0.5
 
 ANCHOR_POINT = [H // 2, W // 2]
+TARGET_POINTS = [300, 500, 600, 1000, 1500, 2000]
+TARGET_THRESHOLDS = [0.02, 0.02, 0.02, 0.02, 0.04, 0.04]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
@@ -18,6 +21,8 @@ MEDIAN_DISP_NAME = "median_disp_50x50_anchor"
 GT_DIST_NAME = "actual_depth"
 GT_ERROR_NAME = "absolute_error"
 GT_DISP_ERROR_NAME = "absolute_disp_error"
+GT_DIST_ERROR_NAME = "absolute_depth_error"
+KBD_ERROR_NAME = "absolute_kbd_error"
 FOCAL_NAME = "focal"
 BASLINE_NAME = "baseline"
 KBD_PRED_NAME = "kbd_pred"

@@ -155,9 +155,13 @@ def plot_linear2(
     filtered_disp1 = est[mask1]
     filtered_depth1 = gt[mask1]
     error1 = error[mask1]
-    pred_1_disp = linear_model.predict(filtered_disp1.reshape(-1, 1))
-    pred1 = focal * baseline / pred_1_disp
-    residual1 = pred1 - filtered_depth1
+    if len(mask1[0]) != 0:
+        pred_1_disp = linear_model.predict(filtered_disp1.reshape(-1, 1))
+        pred1 = focal * baseline / pred_1_disp
+        residual1 = pred1 - filtered_depth1
+    else:
+        pred1 = focal * baseline / filtered_disp1
+        residual1 = pred1 - filtered_depth1
 
     filtered_disp2 = est[mask2]
     filtered_depth2 = gt[mask2]

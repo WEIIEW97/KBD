@@ -856,15 +856,15 @@ def export_default_settings(path, focal, baseline, compensate_dist, scaling_fact
 
 
 if __name__ == "__main__":
-    cwd = "/Users/williamwei/Data/KBD/20240803"
+    cwd = "/home/william/extdisk/data/KBD_ACCURACY"
     # please make adjustments to them accordingly
 
     compensate_dist = 400
     scaling_factor = 10
     # disjoint_depth_range = [600, 3000]
     engine = "Nelder-Mead"  # Nelder-Mead or Trust-Region
-    camera_type = "N9LAZG24GN0293"
-    table_name = "depthquality_2024-08-02.xlsx"
+    camera_type = "N9LAZG24GN0282"
+    table_name = "depthquality_2024-07-26.xlsx"
     apply_global = False
     bound_ratio_alpha = 0.7
     sample_weights_factor = 3.0

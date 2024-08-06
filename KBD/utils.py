@@ -8,6 +8,7 @@ from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
 
 from .models import global_KBD_func, linear_KBD_piecewise_func
+from .constants import *
 
 
 def read_excel(path: str) -> pd.DataFrame:
@@ -149,3 +150,22 @@ def save_arrays_to_txt2(savepath, arr1, arr2):
         f.write("z error rate according to designed distance : \n")
         np.savetxt(f, arr2, fmt="%.16f", delimiter=",")
     print(f"Arrays have been saved to {savepath}")
+
+
+def export_default_settings(path, focal, baseline, compensate_dist, scaling_factor):
+    default_range = (600, 3000)
+    extra_range = [
+        default_range[0] - compensate_dist,
+        default_range[0],
+        default_range[1],
+        default_range[1] + compensate_dist * scaling_factor,
+    ]
+    disp_nodes_fp32 = focal * baseline / (np.array(extra_range))
+    disp_nodes_uint16 = (disp_nodes_fp32 * 64).astype(np.uint16)
+    disp_nodes_uint16 = np.sort(disp_nodes_uint16)
+    disp_nodes_uint16 = np.append(disp_nodes_uint16, DISP_VAL_MAX_UINT16)
+    default_param = np.array([1, 0, 0, 1, 0])
+    matrix = np.tile(default_param, (5, 1))
+    matrix_param_by_disp = matrix[::-1, :]
+    save_arrays_to_json(path, disp_nodes_uint16, matrix_param_by_disp)
+    return default_range, matrix
