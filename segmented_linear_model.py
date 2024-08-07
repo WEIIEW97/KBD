@@ -28,6 +28,7 @@ EVAL_WARNING_RATE = 0.5
 
 ANCHOR_POINT = [H // 2, W // 2]
 TARGET_POINTS = [300, 500, 600, 1000, 1500, 2000]
+TARGET_THRESHOLDS = [0.02, 0.02, 0.02, 0.02, 0.04, 0.04]
 
 AVG_DIST_NAME = "avg_depth_50x50_anchor"
 AVG_DISP_NAME = "avg_disp_50x50_anchor"
@@ -35,6 +36,9 @@ MEDIAN_DIST_NAME = "median_depth_50x50_anchor"
 MEDIAN_DISP_NAME = "median_disp_50x50_anchor"
 GT_DIST_NAME = "actual_depth"
 GT_ERROR_NAME = "absolute_error"
+GT_DISP_ERROR_NAME = "absolute_disp_error"
+GT_DIST_ERROR_NAME = "absolute_depth_error"
+KBD_ERROR_NAME = "absolute_kbd_error"
 FOCAL_NAME = "focal"
 BASLINE_NAME = "baseline"
 KBD_PRED_NAME = "kbd_pred"
@@ -662,6 +666,96 @@ def generate_parameters_linear_search(
 
     return best_pm, best_range, best_z_error_rate
 
+class GridSearch2D:
+    def __init__(
+        self,
+        df,
+        focal,
+        baseline,
+        scaling_factor,
+        engine="Nelder-Mead",
+        apply_global=False,
+    ):
+        # Validate inputs
+        if df.empty:
+            raise ValueError("DataFrame is empty.")
+        if not all(
+            x in df.columns for x in [GT_DIST_NAME, AVG_DISP_NAME, GT_ERROR_NAME]
+        ):
+            raise ValueError("DataFrame missing required columns.")
+
+        self.df = df
+        self.focal = focal
+        self.baseline = baseline
+        self.engine = engine
+        self.apply_global = apply_global
+        self.scaling_factor = scaling_factor
+
+        # Convert to numpy for faster calculations
+        self.actual_depth = df[GT_DIST_NAME].values
+        self.avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+        self.error = df[GT_ERROR_NAME].values
+
+    def eval_parameters(self, range_start, compensate_dist):
+        disjoint_depth_range = [range_start, 3000]
+        jlm = JointLinearSmoothingOptimizer(
+            self.actual_depth,
+            self.avg_50x50_anchor_disp,
+            self.focal,
+            self.baseline,
+            disjoint_depth_range,
+            compensate_dist,
+            scaling_factor=self.scaling_factor,
+            engine=self.engine,
+            apply_global=self.apply_global,
+        )
+        lm1, kbd, lm2 = jlm.run()
+        pm = construct_param_matrix(lm1, kbd, lm2)
+        mse, _ = evaluate_target(
+            self.focal,
+            self.baseline,
+            pm,
+            disjoint_depth_range,
+            compensate_dist,
+            self.scaling_factor,
+            TARGET_POINTS,
+        )
+        return mse, pm, (lm1, kbd, lm2)
+
+    def optimize_parameters(self, search_range, cd_range, max_iter=1000, tol=1e-6):
+        def objective(x):
+            mse, pm, params = self.eval_parameters(x[0], x[1])
+            # if params[0].coef_[0] <= 0:
+            #     mse = 10e7
+            return mse
+
+        initial_guess = [search_range[0], cd_range[0]]
+        bounds = [search_range, cd_range]
+
+        self.result = minimize(
+            objective,
+            initial_guess,
+            method="Nelder-Mead",
+            bounds=bounds,
+            options={"maxiter": max_iter, "disp": False, "xatol": tol},
+        )
+
+    def get_results(self):
+        if self.result.success:
+            optimized_range_start, optimized_compensate_dist = self.result.x
+            best_mse, best_pm, best_params = self.eval_parameters(
+                optimized_range_start, optimized_compensate_dist
+            )
+            print("Optimization successful.")
+            print(f"Optimized range start: {optimized_range_start}")
+            print(f"Optimized compensate distance: {optimized_compensate_dist}")
+            print(f"Minimum MSE: {best_mse}")
+
+            return (best_pm, optimized_range_start, optimized_compensate_dist)
+        else:
+            print("Optimization failed: " + self.result.message)
+            return (-1, -1, -1)
+
 
 def save_arrays_to_json(savepath, arr1d, arr2d):
     arr1d_lst = arr1d.tolist()
@@ -856,20 +950,21 @@ def export_default_settings(path, focal, baseline, compensate_dist, scaling_fact
 
 
 if __name__ == "__main__":
-    cwd = "/home/william/extdisk/data/KBD_ACCURACY"
+    cwd = "/home/william/extdisk/data/20240803"
     # please make adjustments to them accordingly
-
-    compensate_dist = 400
-    scaling_factor = 10
     # disjoint_depth_range = [600, 3000]
     engine = "Nelder-Mead"  # Nelder-Mead or Trust-Region
-    camera_type = "N9LAZG24GN0282"
-    table_name = "depthquality_2024-07-26.xlsx"
+    camera_type = "N9LAZG24GN0293"
+    table_name = "depthquality_2024-08-02.xlsx"
     apply_global = False
     bound_ratio_alpha = 0.7
     sample_weights_factor = 3.0
+    scaling_factor = 10
+    search_range = (600, 1100)
+    cd_range = (100, 400)
     global_judge = "global" if apply_global else "local"
     optimizer_judge = "nelder-mead" if engine == "Nelder-Mead" else "trust-region"
+    status = -1
     print(f"processing {camera_type} now with {table_name} ...")
 
     root_dir = f"{cwd}/{camera_type}/image_data"
@@ -902,16 +997,10 @@ if __name__ == "__main__":
             print("*********** END OF WARNING *************")
         print("Begin to generate parameters with line searching...")
 
-        matrix, best_range, best_z_err = generate_parameters_linear_search(
-            df,
-            focal,
-            baseline,
-            search_range=(600, 1100),
-            engine=engine,
-            compensate_dist=compensate_dist,
-            scaling_factor=scaling_factor,
-            apply_global=apply_global,
-        )
+        GridSearchOptimizer = GridSearch2D(df, focal, baseline, scaling_factor, engine=engine, apply_global=apply_global)
+        GridSearchOptimizer.optimize_parameters(search_range, cd_range)
+        matrix, best_range_start, best_cd = GridSearchOptimizer.get_results()
+        best_range = (best_range_start, 3000)
         ## add before/after kbd comparsion
         X = df[AVG_DISP_NAME]
         Y = df[GT_DIST_NAME]
@@ -921,10 +1010,13 @@ if __name__ == "__main__":
             baseline,
             matrix,
             best_range,
-            compensate_dist,
+            best_cd,
             scaling_factor,
         )
         df[KBD_PRED_NAME] = pred
+        df[GT_DIST_ERROR_NAME] = np.abs(df[GT_ERROR_NAME]/Y)
+        df[KBD_ERROR_NAME] = np.abs((Y-pred)/Y)
+        df_criteria = df[df[GT_DIST_NAME].isin(np.array(TARGET_POINTS))]
         weights = Y.apply(lambda x: sample_weights_factor if x in TARGET_POINTS else 1.0)
         previous_mse = mean_squared_error(Y, X, sample_weight=weights)
         after_mse = mean_squared_error(Y, df[KBD_PRED_NAME], sample_weight=weights)
@@ -932,10 +1024,10 @@ if __name__ == "__main__":
         if after_mse < previous_mse:
             range_raw = best_range
             extra_range = [
-                range_raw[0] - compensate_dist,
+                range_raw[0] - best_cd,
                 range_raw[0],
                 range_raw[1],
-                range_raw[1] + compensate_dist * scaling_factor,
+                range_raw[1] + best_cd * scaling_factor,
             ]
             disp_nodes_fp32 = focal * baseline / (np.array(extra_range))
             disp_nodes_uint16 = (disp_nodes_fp32 * 64).astype(np.uint16)
@@ -946,16 +1038,28 @@ if __name__ == "__main__":
             save_arrays_to_json(
                 save_params_path, disp_nodes_uint16, matrix_param_by_disp
             )
+            cond = (df_criteria[KBD_ERROR_NAME] < TARGET_THRESHOLDS)
+            if cond.all():
+                status = 0
+            else:
+                status = 1
         else:
             best_range, matrix = export_default_settings(
-                save_params_path, focal, baseline, compensate_dist, scaling_factor
+                save_params_path, focal, baseline, best_cd, scaling_factor
             )
             export_original = True
+            cond = (df_criteria[KBD_ERROR_NAME] < TARGET_THRESHOLDS)
+            if cond.all():
+                status = 0
+            else:
+                status = 2
     else:
+        best_cd = 100
         best_range, matrix = export_default_settings(
-            save_params_path, focal, baseline, compensate_dist, scaling_factor
+            save_params_path, focal, baseline, best_cd, scaling_factor
         )
         export_original = True
+        status = 0
     print("===> Working done! Parameters are being generated.")
 
     print("Beging to copy and transform depth raws ...")
@@ -967,7 +1071,7 @@ if __name__ == "__main__":
             focal,
             baseline,
             best_range,
-            compensate_dist,
+            best_cd,
             scaling_factor,
         )
     print("===> Working done! Transformed raw depths are being generated.")

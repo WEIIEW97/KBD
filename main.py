@@ -7,7 +7,8 @@ from KBD.apis import (
     apply_transformation_linear,
     generate_parameters_linear,
     generate_parameters_linear_search,
-    GridSearch2D
+    GridSearch2D,
+    BayesSearch2D,
 )
 from KBD.constants import *
 from KBD.eval import check_monotonicity, eval, ratio_evaluate, first_check, pass_or_not
@@ -30,7 +31,6 @@ if __name__ == "__main__":
     # camera_types = [
     #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     # ]
-    disjoint_depth_ranges = [600, 3000]
     engine = "Nelder-Mead"
     sample_weights_factor = 3.0
     export_original = False
@@ -39,6 +39,8 @@ if __name__ == "__main__":
     #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     # ]
     # for genre in genres:
+    search_range = (600, 1100)
+    cd_range = (100, 400)
     failed_devices = []
     for apply_global in [True, False]:
         if apply_global:
@@ -67,7 +69,7 @@ if __name__ == "__main__":
             optimizer_judge = (
                 "nelder-mead" if engine == "Nelder-Mead" else "trust-region"
             )
-            optimizer_judge = optimizer_judge + "-grid-restrict"
+            optimizer_judge = optimizer_judge + "-bayes"
             save_params_path = (
                 base_path
                 + f"/{optimizer_judge}"
@@ -121,13 +123,21 @@ if __name__ == "__main__":
                 #     scaling_factor=10,
                 #     plot=True
                 # )
+                ###### for grid search #####
+                # GridSearchOptimizer = GridSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
+                # GridSearchOptimizer.optimize_parameters(search_range, cd_range)
+                # matrix, best_range_start, best_cd = GridSearchOptimizer.get_results()
+                # best_range = (best_range_start, 3000)
+                ######       end       #####
 
-                search_range = (600, 1100)
-                cd_range = (10, 400)
-                GridSearchOptimizer = GridSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
-                GridSearchOptimizer.optimize_parameters(search_range, cd_range)
-                matrix, best_range_start, best_cd = GridSearchOptimizer.get_results()
+                ###### for bayes search ####
+                BayesSearchOptimizer = BayesSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
+                BayesSearchOptimizer.optimize_parameters(search_range, cd_range)
+                matrix, best_range_start, best_cd = BayesSearchOptimizer.get_results()
                 best_range = (best_range_start, 3000)
+                ######       end        ####
+
+
                 # best_range = (1100, 3000)
                 # best_cd = 400
                 # add before/after kbd comparsion
@@ -207,4 +217,4 @@ if __name__ == "__main__":
         print(f"The passing rate is {p/N} ...")
         failed_df = pd.DataFrame()
         failed_df["devices"] = failed_devices
-        failed_df.to_csv(os.path.join(root_dir, "failed_devices_grid_restrict.csv"))
+        failed_df.to_csv(os.path.join(root_dir, "failed_devices_bayes.csv"))

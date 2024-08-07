@@ -3,6 +3,7 @@ from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
+from bayes_opt import BayesianOptimization, UtilityFunction
 from scipy.optimize import minimize
 from tqdm import tqdm
 
@@ -132,7 +133,6 @@ def generate_parameters_trf(
     return k_, delta_, b_
 
 
-
 def construct_param_matrix(linear_model1, kbd_params, linear_model2):
     k_, delta_, b_ = kbd_params
     params_matrix = np.zeros((5, 5), dtype=np.float32)
@@ -149,11 +149,23 @@ def construct_param_matrix(linear_model1, kbd_params, linear_model2):
 
 
 class GridSearch2D:
-    def __init__(self, df, focal, baseline, scaling_factor, save_path=None, engine="Nelder-Mead", apply_global=False, is_plot=False):
+    def __init__(
+        self,
+        df,
+        focal,
+        baseline,
+        scaling_factor,
+        save_path=None,
+        engine="Nelder-Mead",
+        apply_global=False,
+        is_plot=False,
+    ):
         # Validate inputs
         if df.empty:
             raise ValueError("DataFrame is empty.")
-        if not all(x in df.columns for x in [GT_DIST_NAME, AVG_DISP_NAME, GT_ERROR_NAME]):
+        if not all(
+            x in df.columns for x in [GT_DIST_NAME, AVG_DISP_NAME, GT_ERROR_NAME]
+        ):
             raise ValueError("DataFrame missing required columns.")
 
         self.df = df
@@ -164,9 +176,6 @@ class GridSearch2D:
         self.scaling_factor = scaling_factor
         self.save_path = save_path
         self.is_plot = is_plot
-
-        # Calculate fb only once since it's a fixed value based on focal and baseline
-        self.fb = focal * baseline
 
         # Convert to numpy for faster calculations
         self.actual_depth = df[GT_DIST_NAME].values
@@ -189,15 +198,21 @@ class GridSearch2D:
         lm1, kbd, lm2 = jlm.run()
         pm = construct_param_matrix(lm1, kbd, lm2)
         mse, _ = evaluate_target(
-            self.focal, self.baseline, pm, disjoint_depth_range, compensate_dist, self.scaling_factor, TARGET_POINTS
+            self.focal,
+            self.baseline,
+            pm,
+            disjoint_depth_range,
+            compensate_dist,
+            self.scaling_factor,
+            TARGET_POINTS,
         )
         return mse, pm, (lm1, kbd, lm2)
 
     def optimize_parameters(self, search_range, cd_range, max_iter=1000, tol=1e-6):
         def objective(x):
             mse, pm, params = self.eval_parameters(x[0], x[1])
-            if params[0].coef_[0] <= 0:
-                mse = 10e7
+            # if params[0].coef_[0] <= 0:
+            #     mse = 10e7
             return mse
 
         initial_guess = [search_range[0], cd_range[0]]
@@ -206,15 +221,17 @@ class GridSearch2D:
         self.result = minimize(
             objective,
             initial_guess,
-            method='Nelder-Mead',
+            method="Nelder-Mead",
             bounds=bounds,
-            options={'maxiter': max_iter, 'disp': False, 'xatol': tol}
+            options={"maxiter": max_iter, "disp": False, "xatol": tol},
         )
 
     def get_results(self):
         if self.result.success:
             optimized_range_start, optimized_compensate_dist = self.result.x
-            best_mse, best_pm, best_params = self.eval_parameters(optimized_range_start, optimized_compensate_dist)
+            best_mse, best_pm, best_params = self.eval_parameters(
+                optimized_range_start, optimized_compensate_dist
+            )
             print("Optimization successful.")
             print(f"Optimized range start: {optimized_range_start}")
             print(f"Optimized compensate distance: {optimized_compensate_dist}")
@@ -239,7 +256,123 @@ class GridSearch2D:
         else:
             print("Optimization failed: " + self.result.message)
             return (-1, -1, -1)
-    
+
+
+class BayesSearch2D:
+    def __init__(
+        self,
+        df,
+        focal,
+        baseline,
+        scaling_factor,
+        save_path=None,
+        engine="Nelder-Mead",
+        apply_global=False,
+        is_plot=False,
+    ):
+        # Validate inputs
+        if df.empty:
+            raise ValueError("DataFrame is empty.")
+        if not all(
+            x in df.columns for x in [GT_DIST_NAME, AVG_DISP_NAME, GT_ERROR_NAME]
+        ):
+            raise ValueError("DataFrame missing required columns.")
+
+        self.df = df
+        self.focal = focal
+        self.baseline = baseline
+        self.engine = engine
+        self.apply_global = apply_global
+        self.scaling_factor = scaling_factor
+        self.save_path = save_path
+        self.is_plot = is_plot
+
+        # Convert to numpy for faster calculations
+        self.actual_depth = df[GT_DIST_NAME].values
+        self.avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
+        self.error = df[GT_ERROR_NAME].values
+
+    def eval_parameters(self, range_start, compensate_dist):
+        disjoint_depth_range = (range_start, 3000)
+        jlm = JointLinearSmoothingOptimizer(
+            self.actual_depth,
+            self.avg_50x50_anchor_disp,
+            self.focal,
+            self.baseline,
+            disjoint_depth_range,
+            compensate_dist,
+            scaling_factor=self.scaling_factor,
+            engine=self.engine,
+            apply_global=self.apply_global,
+        )
+        lm1, kbd, lm2 = jlm.run()
+        pm = construct_param_matrix(lm1, kbd, lm2)
+        mse, _ = evaluate_target(
+            self.focal,
+            self.baseline,
+            pm,
+            disjoint_depth_range,
+            compensate_dist,
+            self.scaling_factor,
+            TARGET_POINTS,
+        )
+        return mse, pm, (lm1, kbd, lm2)
+
+    def optimize_parameters(self, search_range, cd_range, max_iter=100, init_points=5):
+        # Define the objective function for Bayesian Optimization
+        def objective(range_start, compensate_dist):
+            mse, _, _ = self.eval_parameters(range_start, compensate_dist)
+            return -mse  # Minimize MSE by maximizing negative MSE
+
+        # Setup the bounds for Bayesian Optimization
+        pbounds = {"range_start": search_range, "compensate_dist": cd_range}
+
+        # Initialize Bayesian Optimization
+        optimizer = BayesianOptimization(
+            f=objective,
+            pbounds=pbounds,
+            random_state=1,
+            verbose=2,
+            allow_duplicate_points=True,
+        )
+
+        # Optimize
+        optimizer.maximize(
+            init_points=init_points,
+            n_iter=max_iter,
+        )
+
+        # Extract the best parameters
+        best_params = optimizer.max["params"]
+        best_mse = -optimizer.max["target"]  # Convert back to positive MSE
+        best_range_start = best_params["range_start"]
+        best_compensate_dist = best_params["compensate_dist"]
+
+        self.rng = best_range_start
+        self.cd = best_compensate_dist
+
+        print(f"Best MSE: {best_mse}")
+        print(f"Best Range Start: {best_range_start}")
+        print(f"Best Compensate Dist: {best_compensate_dist}")
+
+    def get_results(self):
+        mse, pm, params = self.eval_parameters(self.rng, self.cd)
+        if self.save_path is not None and self.is_plot:
+            plot_linear2(
+                self.actual_depth,
+                self.avg_50x50_anchor_disp,
+                self.error,
+                self.focal,
+                self.baseline,
+                params,
+                (int(self.rng), 3000),
+                int(self.cd),
+                scaling_factor=self.scaling_factor,
+                apply_global=self.apply_global,
+                save_path=self.save_path,
+            )
+        return (pm, self.rng, self.cd)
+
 
 def generate_parameters_linear_search(
     df: pd.DataFrame,
