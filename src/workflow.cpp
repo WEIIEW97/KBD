@@ -21,6 +21,11 @@
 #include <arrow/api.h>
 #include <arrow/compute/api.h>
 #include <cfloat>
+#include <unordered_map>
+#include <fmt/ostream.h>
+#include <fmt/core.h>
+#include <fmt/format.h>
+
 namespace kbd {
 
   void LinearWorkflow::preprocessing(const std::string& file_path,
@@ -72,17 +77,21 @@ namespace kbd {
     lm2_ = lm2;
   }
 
-  void
-  LinearWorkflow::optimize_and_search(const std::array<int, 2>& search_range,
-                                      OptimizerDiffType diff_type) {
+  void LinearWorkflow::line_search(const std::array<int, 2>& search_range,
+                                   OptimizerDiffType diff_type) {
     auto lowest_mse = DBL_MAX;
     auto sz = (search_range[1] - search_range[0]) / step_ + 1;
-    std::vector<Eigen::Matrix<double, 5, 5>> ranges(sz);
+    std::vector<std::array<int, 2>> ranges(sz);
+    std::vector<Eigen::Matrix<double, 5, 5>> pms(sz);
     std::vector<Eigen::Vector2d> lm1s(sz);
     std::vector<Eigen::Vector2d> lm2s(sz);
     std::vector<Eigen::Vector3d> kbds(sz);
     std::vector<double> mses(sz);
-    std::vector<Eigen::Vector<double, 5>> z_error_rates(sz);
+    std::vector<Eigen::Vector<double, 6>> z_error_rates(sz);
+
+    Eigen::Matrix<double, 5, 5> best_pm;
+    std::array<int, 2> best_range;
+    Eigen::Vector<double, 6> best_z_error_rate;
 
     for (int s = search_range[0]; s <= search_range[1]; s += step_) {
       std::array<int, 2> rg = {s, search_range[1]};
@@ -92,7 +101,49 @@ namespace kbd {
       optimizer.set_optimizer_type(diff_type);
       auto [lm1, kbd, lm2] = optimizer.run();
       auto pm = extend_matrix(lm1, kbd, lm2);
+      auto [mse, z_error_rate] = evaluate_target(pm, rg);
+      ranges.push_back(rg);
+      pms.push_back(pm);
+      lm1s.push_back(lm1);
+      kbds.push_back(kbd);
+      lm2s.push_back(lm2);
+      mses.push_back(mse);
+      z_error_rates.push_back(z_error_rate);
     }
+
+    // After collecting all results, analyze them based on the given conditions
+    for (int i = 0; i < sz; ++i) {
+      auto z_er = z_error_rates[i];
+      if ((z_er.head(4).array() < 0.02).all() &&
+          (z_er.tail(1).array() < 0.04).all()) {
+        if (mses[i] < lowest_mse) {
+          lowest_mse = mses[i];
+          best_range = ranges[i];
+          best_pm = pms[i];
+          best_z_error_rate = z_error_rates[i];
+        }
+      }
+    }
+
+    // If no suitable mse is found, pick the smallest overall
+    if (lowest_mse == DBL_MAX) {
+      auto min_iter = std::min_element(mses.begin(), mses.end());
+      lowest_mse = *min_iter;
+      auto index = std::distance(mses.begin(), min_iter);
+      best_range = ranges[index];
+      best_pm = pms[index];
+      best_z_error_rate = z_error_rates[index];
+    }
+
+    best_range_ = best_range;
+    best_pm_ = std::move(best_pm);
+    best_z_error_rate_ = std::move(best_z_error_rate);
+
+    fmt::print("{:=>50}\n", "");
+    fmt::print("Best ranges: {}\n", fmt::join(best_range, ", "));
+    fmt::print("{:=>50}\n", "");
+    fmt::print("Best z error rate: {}\n", best_z_error_rate);
+    fmt::print("{:=>50}\n", "");
   }
 
   void LinearWorkflow::extend_matrix() {
@@ -224,6 +275,34 @@ namespace kbd {
     return std::make_tuple(eval_res, acceptance);
   }
 
+  bool LinearWorkflow::pass_or_not(const Config& config) {
+    auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
+        trimmed_df_->GetColumnByName(config.GT_DIST_NAME)->chunk(0));
+    auto error_arrow_array = std::static_pointer_cast<arrow::DoubleArray>(
+        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME)->chunk(0));
+
+    std::unordered_map<int, double> metric_thresholds;
+    for (int i = 0; i < 4; ++i) {
+      metric_thresholds[metric_points_[i]] = 0.02;
+    }
+    for (int i = 4; i < metric_points_.size(); ++i) {
+      metric_thresholds[metric_points_[i]] = 0.04;
+    }
+
+    int sz = z_arrow_array->length();
+    for (int i = 0; i < sz; ++i) {
+      auto z_val = z_arrow_array->Value(i);
+      if (metric_thresholds.find(z_val) != metric_thresholds.end()) {
+        double err =
+            std::abs(error_arrow_array->Value(i) / static_cast<double>(z_val));
+        if (err > metric_thresholds[z_val]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   bool LinearWorkflow::ratio_evaluate(double alpha, int min_offset,
                                       const Config& config) {
     auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
@@ -253,6 +332,22 @@ namespace kbd {
       }
     }
     return true;
+  }
+
+  bool LinearWorkflow::first_check(double max_thr, double mean_thr,
+                                   const Config& config) {
+    auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
+        trimmed_df_->GetColumnByName(config.GT_DIST_NAME)->chunk(0));
+    auto error_arrow_array = std::static_pointer_cast<arrow::DoubleArray>(
+        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME)->chunk(0));
+
+    auto sz = z_arrow_array->length();
+    Eigen::VectorXd err_rate(sz);
+    for (int i = 0; i < sz; ++i) {
+      err_rate(i) = std::abs(error_arrow_array->Value(i) /
+                             static_cast<double>(z_arrow_array->Value(i)));
+    }
+    return (err_rate.maxCoeff() < max_thr && err_rate.mean() < mean_thr);
   }
 
   std::tuple<double, Eigen::Vector<double, 6>> LinearWorkflow::evaluate_target(

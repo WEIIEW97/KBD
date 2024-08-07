@@ -170,10 +170,10 @@ def pass_or_not(df: pd.DataFrame):
         quali = df[df[GT_DIST_NAME] == metric]["absolute_error_rate"]
         quali = np.abs(quali)
         if metric in (300, 500, 600, 1000):
-            if not (quali < 0.02).all():
+            if not (quali <= 0.02).all():
                 return False
         elif metric in (1500, 2000):
-            if not (quali < 0.04).all():
+            if not (quali <= 0.04).all():
                 return False
     return True
 

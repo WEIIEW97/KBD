@@ -37,9 +37,9 @@ namespace kbd {
                        const std::string& csv_path, const Config& config,
                        const JointSmoothArguments& args);
     void optimize(OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
-    void optimize_and_search(
-        const std::array<int, 2>& search_range,
-        OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
+    void
+    line_search(const std::array<int, 2>& search_range,
+                OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
     void extend_matrix();
     Eigen::Matrix<double, 5, 5> extend_matrix(const Eigen::Vector2d& lm1,
                                               const Eigen::Vector3d& kbd,
@@ -48,7 +48,9 @@ namespace kbd {
                Eigen::Matrix<double, 5, 5>>
     pivot();
     std::tuple<std::map<double, double>, double> eval(const Config& config);
+    bool pass_or_not(const Config& config);
     bool ratio_evaluate(double alpha, int min_offset, const Config& config);
+    bool first_check(double max_thr, double mean_thr, const Config& config);
     double get_focal_val() const;
     double get_baseline_val() const;
 
@@ -65,6 +67,9 @@ namespace kbd {
     Eigen::Vector2d lm1_, lm2_;
     Eigen::Vector3d kbd_res_;
     std::array<int, 2> disjoint_depth_range_ = {0};
+    std::array<int, 2> best_range_ = {0};
+    Eigen::Matrix<double, 5, 5> best_pm_;
+    Eigen::Vector<double, 6> best_z_error_rate_;
     ndArray<double> ref_z_;
     uint16_t disp_val_max_uint16_;
     int step_ = 50; // can be modified accordingly
