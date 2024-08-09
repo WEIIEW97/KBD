@@ -30,7 +30,7 @@ namespace kbd {
 
   class LinearWorkflow {
   public:
-    LinearWorkflow() {}
+    LinearWorkflow() = default;
     ~LinearWorkflow() = default;
 
     void preprocessing(const std::string& file_path,
@@ -40,6 +40,29 @@ namespace kbd {
     void
     line_search(const std::array<int, 2>& search_range,
                 OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
+    struct grid_search {
+      explicit grid_search(
+          LinearWorkflow* lwf,
+          OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD)
+          : lwf_(lwf), diff_type_(diff_type) {}
+
+      std::tuple<double, Eigen::Matrix<double, 5, 5>, Eigen::Vector2d,
+                 Eigen::Vector3d, Eigen::Vector2d>
+      eval_params(int range_start, double compensate_dist);
+      void optimize_params(const std::array<int, 2>& search_range,
+                           const std::array<double, 2>& cd_range,
+                           int max_iter = 1000, double tol = 1e-6);
+      std::tuple<Eigen::Matrix<double, 5, 5>, int, double> get_results();
+
+      double objective(const Eigen::Vector2d& params);
+
+    public:
+      Eigen::Vector2d optim_res_;
+
+    private:
+      LinearWorkflow* lwf_;
+      OptimizerDiffType diff_type_;
+    };
     void extend_matrix();
     Eigen::Matrix<double, 5, 5> extend_matrix(const Eigen::Vector2d& lm1,
                                               const Eigen::Vector3d& kbd,
@@ -47,10 +70,13 @@ namespace kbd {
     std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
                Eigen::Matrix<double, 5, 5>>
     pivot();
-    std::tuple<std::map<double, double>, double> eval(const Config& config);
-    bool pass_or_not(const Config& config);
-    bool ratio_evaluate(double alpha, int min_offset, const Config& config);
-    bool first_check(double max_thr, double mean_thr, const Config& config);
+    std::tuple<std::map<double, double>, double> eval();
+    bool pass_or_not();
+    bool ratio_evaluate(double alpha = 0.5, int min_offset = 500);
+    bool first_check(double max_thr = 0.07, double mean_thr = 0.05);
+    bool final_check(const Eigen::Matrix<double, 5, 5>& pm,
+                     const std::array<int, 2>& range, double cd,
+                     double weights_factor = 3.0);
     double get_focal_val() const;
     double get_baseline_val() const;
 
@@ -61,9 +87,9 @@ namespace kbd {
     void lazy_compute_ref_z();
 
   private:
-    double focal_, baseline_, cd_, sf_;
-    bool apply_global_;
-    Eigen::ArrayXd gt_double_, est_double_;
+    double focal_{}, baseline_{}, cd_{}, sf_{};
+    bool apply_global_ = false;
+    Eigen::ArrayXd gt_double_, est_double_, error_double_;
     Eigen::Vector2d lm1_, lm2_;
     Eigen::Vector3d kbd_res_;
     std::array<int, 2> disjoint_depth_range_ = {0};
@@ -71,12 +97,15 @@ namespace kbd {
     Eigen::Matrix<double, 5, 5> best_pm_;
     Eigen::Vector<double, 6> best_z_error_rate_;
     ndArray<double> ref_z_;
-    uint16_t disp_val_max_uint16_;
+    uint16_t disp_val_max_uint16_{};
     int step_ = 50; // can be modified accordingly
     std::array<int, 6> metric_points_ = JointSmoothArguments().metric_points;
+    Config config_;
+    JointSmoothArguments args_;
 
   public:
     std::shared_ptr<arrow::Table> trimmed_df_;
     Eigen::Matrix<double, 5, 5> full_kbd_params5x5_;
+    friend struct grid_search;
   };
 } // namespace kbd

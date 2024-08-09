@@ -1018,7 +1018,7 @@ if __name__ == "__main__":
         df[KBD_ERROR_NAME] = np.abs((Y-pred)/Y)
         df_criteria = df[df[GT_DIST_NAME].isin(np.array(TARGET_POINTS))]
         weights = Y.apply(lambda x: sample_weights_factor if x in TARGET_POINTS else 1.0)
-        previous_mse = mean_squared_error(Y, X, sample_weight=weights)
+        previous_mse = mean_squared_error(Y, df[AVG_DIST_NAME], sample_weight=weights)
         after_mse = mean_squared_error(Y, df[KBD_PRED_NAME], sample_weight=weights)
         ##################################
         if after_mse < previous_mse:

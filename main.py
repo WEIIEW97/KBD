@@ -42,6 +42,7 @@ if __name__ == "__main__":
     search_range = (600, 1100)
     cd_range = (100, 400)
     failed_devices = []
+    best_cds = []
     for apply_global in [True, False]:
         if apply_global:
             continue
@@ -69,7 +70,7 @@ if __name__ == "__main__":
             optimizer_judge = (
                 "nelder-mead" if engine == "Nelder-Mead" else "trust-region"
             )
-            optimizer_judge = optimizer_judge + "-bayes"
+            optimizer_judge = optimizer_judge + "-grid-cdmin100-v2"
             save_params_path = (
                 base_path
                 + f"/{optimizer_judge}"
@@ -124,19 +125,20 @@ if __name__ == "__main__":
                 #     plot=True
                 # )
                 ###### for grid search #####
-                # GridSearchOptimizer = GridSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
-                # GridSearchOptimizer.optimize_parameters(search_range, cd_range)
-                # matrix, best_range_start, best_cd = GridSearchOptimizer.get_results()
-                # best_range = (best_range_start, 3000)
+                GridSearchOptimizer = GridSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
+                GridSearchOptimizer.optimize_parameters(search_range, cd_range)
+                matrix, best_range_start, best_cd = GridSearchOptimizer.get_results()
+                best_range = (best_range_start, 3000)
                 ######       end       #####
 
-                ###### for bayes search ####
-                BayesSearchOptimizer = BayesSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
-                BayesSearchOptimizer.optimize_parameters(search_range, cd_range)
-                matrix, best_range_start, best_cd = BayesSearchOptimizer.get_results()
-                best_range = (best_range_start, 3000)
-                ######       end        ####
-
+                # ###### for bayes search ####
+                # BayesSearchOptimizer = BayesSearch2D(df, focal, baseline, scaling_factor,save_path=os.path.join(base_path, optimizer_judge), engine=engine, apply_global=apply_global, is_plot=True)
+                # BayesSearchOptimizer.optimize_parameters(search_range, cd_range)
+                # matrix, best_range_start, best_cd = BayesSearchOptimizer.get_results()
+                # best_range = (best_range_start, 3000)
+                # ######       end        ####
+                
+                best_cds.append(best_cd)
 
                 # best_range = (1100, 3000)
                 # best_cd = 400
@@ -157,7 +159,7 @@ if __name__ == "__main__":
                 df[KBD_ERROR_NAME] = np.abs((Y-pred)/Y)
                 df_criteria = df[df[GT_DIST_NAME].isin(np.array(TARGET_POINTS))]
                 weights = Y.apply(lambda x: sample_weights_factor if x in TARGET_POINTS else 1.0)
-                previous_mse = mean_squared_error(Y, X, sample_weight=weights)
+                previous_mse = mean_squared_error(Y, df[AVG_DIST_NAME], sample_weight=weights)
                 after_mse = mean_squared_error(Y, df[KBD_PRED_NAME], sample_weight=weights)
                 ##################################
                 if after_mse < previous_mse:
@@ -217,4 +219,8 @@ if __name__ == "__main__":
         print(f"The passing rate is {p/N} ...")
         failed_df = pd.DataFrame()
         failed_df["devices"] = failed_devices
-        failed_df.to_csv(os.path.join(root_dir, "failed_devices_bayes.csv"))
+        failed_df.to_csv(os.path.join(root_dir, "failed_devices_cdmin100_v2.csv"))
+
+        cd_df = pd.DataFrame()
+        cd_df["best_cd"] = best_cds
+        cd_df.to_csv(os.path.join(root_dir, "best_cd_search_min100_v2.csv"))

@@ -95,6 +95,17 @@ namespace kbd {
     return matrix.template cast<double>().mean();
   }
 
+  template <typename Derived>
+  Derived weighted_mse(
+      const Eigen::Array<Derived, Eigen::Dynamic, Eigen::Dynamic>& Y,
+      const Eigen::Array<Derived, Eigen::Dynamic, Eigen::Dynamic>& X,
+      const Eigen::Array<Derived, Eigen::Dynamic, Eigen::Dynamic>& weights) {
+    auto squared_diff = (Y - X).square();
+    double total_weights_squared_sum = (squared_diff * weights).sum();
+    double total_weights = weights.sum();
+    return total_weights_squared_sum / total_weights;
+  }
+
   std::vector<std::string> retrieve_folder_names(const std::string& path);
   std::vector<std::string> retrieve_file_names(const std::string& path);
   void copy_files_in_directory(const std::string& src, const std::string& dst);

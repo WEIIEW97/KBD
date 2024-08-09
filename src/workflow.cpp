@@ -17,17 +17,14 @@
 #include "workflow.h"
 
 #include "utils.h"
+#include "format.h"
 #include "ops/modifier.h"
 #include <arrow/api.h>
 #include <arrow/compute/api.h>
 #include <cfloat>
 #include <unordered_map>
-#include <fmt/ostream.h>
-#include <fmt/core.h>
-#include <fmt/format.h>
 
 namespace kbd {
-
   void LinearWorkflow::preprocessing(const std::string& file_path,
                                      const std::string& csv_path,
                                      const Config& config,
@@ -41,20 +38,26 @@ namespace kbd {
 
     auto gt_arrow_col = trimmed_df->GetColumnByName(config.GT_DIST_NAME);
     auto est_arrow_col = trimmed_df->GetColumnByName(config.AVG_DISP_NAME);
+    auto error_arrow_col = trimmed_df_->GetColumnByName(config.GT_ERROR_NAME);
 
     auto gt_int64 =
         std::static_pointer_cast<arrow::Int64Array>(gt_arrow_col->chunk(0));
     auto est_double =
         std::static_pointer_cast<arrow::DoubleArray>(est_arrow_col->chunk(0));
+    auto error_double =
+        std::static_pointer_cast<arrow::DoubleArray>(error_arrow_col->chunk(0));
     Eigen::Map<const Eigen::Array<int64_t, Eigen::Dynamic, 1>> gt_eigen_array(
         gt_int64->raw_values(), gt_int64->length());
     Eigen::Map<const Eigen::ArrayXd> est_eigen_array(est_double->raw_values(),
                                                      est_double->length());
+    Eigen::Map<const Eigen::ArrayXd> error_eigen_array(
+        error_double->raw_values(), error_double->length());
 
     focal_ = table_parser.focal_;
     baseline_ = table_parser.baseline_;
     gt_double_ = gt_eigen_array.cast<double>();
     est_double_ = est_eigen_array.cast<double>();
+    error_double_ = error_eigen_array.cast<double>();
     disjoint_depth_range_ = args.disjoint_depth_range;
     cd_ = args.compensate_dist;
     sf_ = args.scaling_factor;
@@ -62,6 +65,8 @@ namespace kbd {
     full_kbd_params5x5_.setZero();
     disp_val_max_uint16_ = config.DISP_VAL_MAX_UINT16;
     trimmed_df_ = trimmed_df;
+    config_ = config;
+    args_ = args;
   }
 
   void LinearWorkflow::optimize(OptimizerDiffType diff_type) {
@@ -90,7 +95,7 @@ namespace kbd {
     std::vector<Eigen::Vector<double, 6>> z_error_rates(sz);
 
     Eigen::Matrix<double, 5, 5> best_pm;
-    std::array<int, 2> best_range;
+    std::array<int, 2> best_range{};
     Eigen::Vector<double, 6> best_z_error_rate;
 
     for (int s = search_range[0]; s <= search_range[1]; s += step_) {
@@ -146,6 +151,56 @@ namespace kbd {
     fmt::print("{:=>50}\n", "");
   }
 
+  std::tuple<double, Eigen::Matrix<double, 5, 5>, Eigen::Vector2d,
+             Eigen::Vector3d, Eigen::Vector2d>
+  LinearWorkflow::grid_search::eval_params(int range_start,
+                                           double compensate_dist) {
+    std::array<int, 2> rng = {range_start, 3000};
+    auto jlm = JointLinearSmoothingOptimizer(
+        lwf_->gt_double_, lwf_->est_double_, lwf_->focal_, lwf_->baseline_, rng,
+        compensate_dist, lwf_->sf_, lwf_->apply_global_, diff_type_);
+    auto [lm1, kbd, lm2] = jlm.run();
+    auto pm = lwf_->extend_matrix(lm1, kbd, lm2);
+    auto [mse, xx] = lwf_->evaluate_target(pm, rng);
+    return {mse, pm, lm1, kbd, lm2};
+  }
+
+  void LinearWorkflow::grid_search::optimize_params(
+      const std::array<int, 2>& search_range,
+      const std::array<double, 2>& cd_range, int max_iter, double tol) {
+    auto nelder_mead = NelderMeadOptimizer<double, Eigen::Vector2d>(
+        std::bind(&grid_search::objective, this, std::placeholders::_1));
+    Eigen::Vector2d ip(2);
+    ip << static_cast<double>(search_range[0]), cd_range[0];
+    nelder_mead.set_init_simplex(ip);
+    Eigen::Vector2d lower_bounds, upper_bounds;
+    lower_bounds << static_cast<double>(search_range[0]), cd_range[0];
+    upper_bounds << static_cast<double>(search_range[1]), cd_range[1];
+    nelder_mead.set_bounds(lower_bounds, upper_bounds);
+    auto res = nelder_mead.optimize();
+    optim_res_ = std::move(res);
+  }
+
+  double LinearWorkflow::grid_search::objective(const Eigen::Vector2d& params) {
+    auto [mse, pm, lm1, kbd, lm2] =
+        this->eval_params(static_cast<int>(params(0)), params(2));
+    return mse;
+  }
+
+  std::tuple<Eigen::Matrix<double, 5, 5>, int, double>
+  LinearWorkflow::grid_search::get_results() {
+    auto best_rng_start = static_cast<int>(optim_res_(0));
+    auto best_cd = optim_res_(1);
+    auto [best_mse, best_pm, lm1, kbd, lm2] =
+        this->eval_params(best_rng_start, best_cd);
+    fmt::print("Optimization successful.\n");
+    fmt::print("Optimized range start: {}\n", best_rng_start);
+    fmt::print("Optimized compensate distance: {}\n", best_cd);
+    fmt::print("Minimum MSE: {}\n", best_mse);
+
+    return {best_pm, best_rng_start, best_cd};
+  }
+
   void LinearWorkflow::extend_matrix() {
     double k, delta, b, alpha1, alpha2, beta1, beta2;
 
@@ -197,15 +252,14 @@ namespace kbd {
     return std::make_tuple(disp_nodes, matrix_param_by_disp);
   }
 
-  std::tuple<std::map<double, double>, double>
-  LinearWorkflow::eval(const Config& config) {
+  std::tuple<std::map<double, double>, double> LinearWorkflow::eval() {
     arrow::DoubleBuilder abs_error_rate_builder;
-    auto stage = config.EVAL_STAGE_STEPS;
+    auto stage = config_.EVAL_STAGE_STEPS;
 
     auto gt_dist_chunked_array =
-        trimmed_df_->GetColumnByName(config.GT_DIST_NAME);
+        trimmed_df_->GetColumnByName(config_.GT_DIST_NAME);
     auto gt_error_chunked_array =
-        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME);
+        trimmed_df_->GetColumnByName(config_.GT_ERROR_NAME);
     auto gt_dist_array = std::static_pointer_cast<arrow::Int64Array>(
         gt_dist_chunked_array->chunk(0));
     auto gt_error_array = std::static_pointer_cast<arrow::DoubleArray>(
@@ -222,7 +276,7 @@ namespace kbd {
     s2 = abs_error_rate_builder.Finish(&abs_error_rate_array);
 
     auto abs_error_rate_field =
-        arrow::field(config.ABS_ERROR_RATE_NAME, arrow::float64());
+        arrow::field(config_.ABS_ERROR_RATE_NAME, arrow::float64());
     trimmed_df_ =
         trimmed_df_
             ->AddColumn(
@@ -230,7 +284,7 @@ namespace kbd {
                 std::make_shared<arrow::ChunkedArray>(abs_error_rate_array))
             .ValueOrDie();
     auto abs_error_rate =
-        trimmed_df_->GetColumnByName(config.ABS_ERROR_RATE_NAME);
+        trimmed_df_->GetColumnByName(config_.ABS_ERROR_RATE_NAME);
     auto max_stage = std::numeric_limits<double>::min();
     for (auto i = 0; i < gt_dist_array->length(); i++) {
       max_stage =
@@ -275,11 +329,11 @@ namespace kbd {
     return std::make_tuple(eval_res, acceptance);
   }
 
-  bool LinearWorkflow::pass_or_not(const Config& config) {
+  bool LinearWorkflow::pass_or_not() {
     auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
-        trimmed_df_->GetColumnByName(config.GT_DIST_NAME)->chunk(0));
+        trimmed_df_->GetColumnByName(config_.GT_DIST_NAME)->chunk(0));
     auto error_arrow_array = std::static_pointer_cast<arrow::DoubleArray>(
-        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME)->chunk(0));
+        trimmed_df_->GetColumnByName(config_.GT_ERROR_NAME)->chunk(0));
 
     std::unordered_map<int, double> metric_thresholds;
     for (int i = 0; i < 4; ++i) {
@@ -303,23 +357,22 @@ namespace kbd {
     return true;
   }
 
-  bool LinearWorkflow::ratio_evaluate(double alpha, int min_offset,
-                                      const Config& config) {
+  bool LinearWorkflow::ratio_evaluate(double alpha, int min_offset) {
     auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
-        trimmed_df_->GetColumnByName(config.GT_DIST_NAME)->chunk(0));
+        trimmed_df_->GetColumnByName(config_.GT_DIST_NAME)->chunk(0));
     auto error_arrow_array = std::static_pointer_cast<arrow::DoubleArray>(
-        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME)->chunk(0));
+        trimmed_df_->GetColumnByName(config_.GT_ERROR_NAME)->chunk(0));
     auto f = std::static_pointer_cast<arrow::DoubleArray>(
-                 trimmed_df_->GetColumnByName(config.FOCAL_NAME)->chunk(0))
+                 trimmed_df_->GetColumnByName(config_.FOCAL_NAME)->chunk(0))
                  ->Value(0);
     auto b = std::static_pointer_cast<arrow::DoubleArray>(
-                 trimmed_df_->GetColumnByName(config.BASELINE_NAME)->chunk(0))
+                 trimmed_df_->GetColumnByName(config_.BASELINE_NAME)->chunk(0))
                  ->Value(0);
 
     auto sz = z_arrow_array->length();
 
     for (int i = 0; i < sz; ++i) {
-      double z_true = static_cast<double>(z_arrow_array->Value(i));
+      auto z_true = static_cast<double>(z_arrow_array->Value(i));
       if (z_true < min_offset)
         continue;
 
@@ -334,12 +387,11 @@ namespace kbd {
     return true;
   }
 
-  bool LinearWorkflow::first_check(double max_thr, double mean_thr,
-                                   const Config& config) {
+  bool LinearWorkflow::first_check(double max_thr, double mean_thr) {
     auto z_arrow_array = std::static_pointer_cast<arrow::Int64Array>(
-        trimmed_df_->GetColumnByName(config.GT_DIST_NAME)->chunk(0));
+        trimmed_df_->GetColumnByName(config_.GT_DIST_NAME)->chunk(0));
     auto error_arrow_array = std::static_pointer_cast<arrow::DoubleArray>(
-        trimmed_df_->GetColumnByName(config.GT_ERROR_NAME)->chunk(0));
+        trimmed_df_->GetColumnByName(config_.GT_ERROR_NAME)->chunk(0));
 
     auto sz = z_arrow_array->length();
     Eigen::VectorXd err_rate(sz);
@@ -348,6 +400,28 @@ namespace kbd {
                              static_cast<double>(z_arrow_array->Value(i)));
     }
     return (err_rate.maxCoeff() < max_thr && err_rate.mean() < mean_thr);
+  }
+
+  bool LinearWorkflow::final_check(const Eigen::Matrix<double, 5, 5>& pm,
+                                   const std::array<int, 2>& range, double cd,
+                                   double weights_factor) {
+    auto avg_depth = focal_ * baseline_ / est_double_;
+    ndArray<double> m_row_major = avg_depth;
+    auto pred =
+        ops::modify_linear(m_row_major, focal_, baseline_, pm, range, cd, sf_);
+    auto gt_error = (error_double_ / gt_double_).abs();
+    auto kbd_error = ((gt_double_ - pred.array()) / gt_double_).abs();
+    Eigen::ArrayXd sample_weights(gt_double_.size());
+    for (int i = 0; i < gt_double_.size(); ++i) {
+      sample_weights(i) =
+          (std::find(metric_points_.begin(), metric_points_.end(),
+                     gt_double_(i)) != metric_points_.end())
+              ? weights_factor
+              : 1.0;
+    }
+    auto before_mse = weighted_mse<double>(gt_double_, avg_depth, sample_weights);
+    auto after_mse = weighted_mse<double>(gt_double_, pred.array(), sample_weights);
+    return after_mse < before_mse;
   }
 
   std::tuple<double, Eigen::Vector<double, 6>> LinearWorkflow::evaluate_target(

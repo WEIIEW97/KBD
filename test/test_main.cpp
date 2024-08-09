@@ -53,43 +53,30 @@ int main() {
   kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
 
   kbd::LinearWorkflow workflow;
+  std::array<int, 2> search_range = {600, 1100};
+  std::array<double, 2> cd_range = {100, 400};
 
   workflow.preprocessing(file_path, csv_path, default_configs, args);
-  auto [eval_res, acceptance] = workflow.eval(default_configs);
-  std::cout << "acceptance rate: " << acceptance << std::endl;
-  if (acceptance < default_configs.EVAL_WARNING_RATE) {
-    fmt::print(fmt::fg(fmt::color::red), "*********** WARNING *************\n");
-    fmt::print(fmt::fg(fmt::color::red),
-               "Please be really cautious since the acceptance rate is {},\n",
-               acceptance);
-    fmt::print(fmt::fg(fmt::color::red),
-               "This may not be the ideal data to be tackled with.\n");
-    fmt::print(fmt::fg(fmt::color::red),
-               "*********** END OF WARNING *************\n");
+  bool export_original = false;
+
+  if (!workflow.first_check() || !workflow.pass_or_not()) {
+    auto [eval_res, acceptance] = workflow.eval();
+    std::cout << "acceptance rate: " << acceptance << std::endl;
+    if (acceptance < default_configs.EVAL_WARNING_RATE) {
+      fmt::print(fmt::fg(fmt::color::red),
+                 "*********** WARNING *************\n");
+      fmt::print(fmt::fg(fmt::color::red),
+                 "Please be really cautious since the acceptance rate is {},\n",
+                 acceptance);
+      fmt::print(fmt::fg(fmt::color::red),
+                 "This may not be the ideal data to be tackled with.\n");
+      fmt::print(fmt::fg(fmt::color::red),
+                 "*********** END OF WARNING *************\n");
+    }
+    kbd::LinearWorkflow::grid_search GridSearcher(&workflow);
+    GridSearcher.optimize_params(search_range, cd_range);
+    auto [matrix, rng_start, cd] = GridSearcher.get_results();
+    
   }
-
-  workflow.optimize();
-  workflow.extend_matrix();
-  workflow.pivot();
-
-  auto [disp_nodes, param_matrix] = workflow.pivot();
-  std::cout << disp_nodes << std::endl;
-  std::cout << param_matrix << std::endl;
-
-  const std::string dumped_json_path =
-      home_path + "/N9LAZG24GN0007/segmented_linear_KBD_params.json";
-  kbd::save_arrays_to_json(dumped_json_path, disp_nodes, param_matrix);
-
-  fmt::print("Working done for the optimization part!\n");
-
-  fmt::print("Begin copying ... \n");
-  kbd::ops::parallel_copy(file_path, transformed_file_path, default_configs);
-
-  fmt::print("Begin transformation ... \n");
-  kbd::ops::parallel_transform(
-      transformed_file_path, param_matrix, workflow.get_focal_val(),
-      workflow.get_baseline_val(), default_configs, args);
-
-  fmt::print("All tasks done! ... \n");
   return 0;
 }

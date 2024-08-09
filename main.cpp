@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
   kbd::LinearWorkflow workflow;
 
   workflow.preprocessing(file_path, csv_path, default_configs, args);
-  auto [eval_res, acceptance] = workflow.eval(default_configs);
+  auto [eval_res, acceptance] = workflow.eval();
 
   if (acceptance < default_configs.EVAL_WARNING_RATE) {
     fmt::print(fmt::fg(fmt::color::red), "*********** WARNING *************\n");
