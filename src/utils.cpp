@@ -77,6 +77,27 @@ namespace kbd {
     file.close();
   }
 
+  void save_arrays_to_json_debug(
+      const std::string& path,
+      const Eigen::Array<uint16_t, Eigen::Dynamic, 1>& arr1d,
+      const Eigen::MatrixXd& arr2d, int range_start, double compensate_dist) {
+    json J;
+    J["optimal_range_start"] = range_start;
+    J["optimal_cd"] = compensate_dist;
+    for (auto i : arr1d) {
+      J["disp_nodes"].push_back(i);
+    }
+    for (int i = 0; i < arr2d.rows(); ++i) {
+      json row = json::array();
+      for (int j = 0; j < arr2d.cols(); ++j) {
+        row.push_back(arr2d(i, j));
+      }
+      J["kbd_params"].push_back(row);
+    }
+    std::ofstream file(path);
+    file << J.dump(4);
+    file.close();
+  }
   std::map<std::string, double>
   calculate_mean_value(const std::string& file_path,
                        const std::vector<std::string>& folders,

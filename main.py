@@ -27,7 +27,7 @@ if __name__ == "__main__":
     compensate_dist = 400
     scaling_factor = 10
 
-    root_dir = "/home/william/extdisk/data/KBD_ACCURACY"
+    root_dir = "/home/william/extdisk/data/KBD"
     # camera_types = [
     #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     # ]
@@ -53,8 +53,8 @@ if __name__ == "__main__":
         N = len(camera_types)
         p = 0
         for camera_type in camera_types:
-            # if camera_type == "N9LAZG24GN0294":
-            #     continue
+            if camera_type != "fuck":
+                continue
             print(f"begin to process {camera_type}")
             base_path = os.path.join(root_dir, camera_type)
             file_path = os.path.join(base_path, "image_data")

@@ -70,6 +70,13 @@ namespace kbd {
     std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
                Eigen::Matrix<double, 5, 5>>
     pivot();
+    std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
+               Eigen::Matrix<double, 5, 5>>
+    pivot(const Eigen::Matrix<double, 5, 5>& m, const std::array<int, 2>& rng,
+          double cd);
+    std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
+               Eigen::Matrix<double, 5, 5>>
+    export_default() const;
     std::tuple<std::map<double, double>, double> eval();
     bool pass_or_not();
     bool ratio_evaluate(double alpha = 0.5, int min_offset = 500);
@@ -107,5 +114,6 @@ namespace kbd {
     std::shared_ptr<arrow::Table> trimmed_df_;
     Eigen::Matrix<double, 5, 5> full_kbd_params5x5_;
     friend struct grid_search;
+    bool final_pass_ = false;
   };
 } // namespace kbd

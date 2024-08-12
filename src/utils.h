@@ -113,6 +113,10 @@ namespace kbd {
   save_arrays_to_json(const std::string& path,
                       const Eigen::Array<uint16_t, Eigen::Dynamic, 1>& arr1d,
                       const Eigen::MatrixXd& arr2d);
+  void save_arrays_to_json_debug(
+      const std::string& path,
+      const Eigen::Array<uint16_t, Eigen::Dynamic, 1>& arr1d,
+      const Eigen::MatrixXd& arr2d, int range_start, double compensate_dist);
   std::map<std::string, double>
   calculate_mean_value(const std::string& file_path,
                        const std::vector<std::string>& folders,

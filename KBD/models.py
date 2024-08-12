@@ -4,7 +4,6 @@ from scipy.optimize import differential_evolution, minimize
 from sklearn.linear_model import LinearRegression
 
 from .constants import EPSILON
-from .kernels import gaussian_kernel, laplacian_kernel, polynomial_kernel_n2
 
 
 def fit_linear_model(x: np.ndarray, y: np.ndarray) -> LinearRegression:

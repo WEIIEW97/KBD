@@ -1,7 +1,7 @@
 # Default mode is single directory
 mode="single"
 use_global="false"
-root_dir="/home/william/extdisk/data/KBD"
+root_dir="/home/william/extdisk/data/KBD_ACCURACY"
 log_file="$root_dir/logfile.log"
 
 log() {

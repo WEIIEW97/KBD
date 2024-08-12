@@ -950,12 +950,12 @@ def export_default_settings(path, focal, baseline, compensate_dist, scaling_fact
 
 
 if __name__ == "__main__":
-    cwd = "/home/william/extdisk/data/20240803"
+    cwd = "/home/william/extdisk/data/KBD"
     # please make adjustments to them accordingly
     # disjoint_depth_range = [600, 3000]
     engine = "Nelder-Mead"  # Nelder-Mead or Trust-Region
-    camera_type = "N9LAZG24GN0293"
-    table_name = "depthquality_2024-08-02.xlsx"
+    camera_type = "fuck"
+    table_name = "depthquality_2024-08-09.csv"
     apply_global = False
     bound_ratio_alpha = 0.7
     sample_weights_factor = 3.0

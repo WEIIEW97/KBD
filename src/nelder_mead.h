@@ -73,7 +73,7 @@ namespace kbd {
         cost_iter(f_values);
 
         if (check_convergence(f_values)) {
-          fmt::print("Convergence achieved after {} iterations.\n", iter);
+          // fmt::print("Convergence achieved after {} iterations.\n", iter);
           break;
         }
 

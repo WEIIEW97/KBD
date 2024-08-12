@@ -29,10 +29,12 @@
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
 
+#define rng_end 3000
+
 int main(int argc, char** argv) {
 
   std::string file_path, csv_path, transformed_file_path;
-  bool apply_global = true;
+  bool apply_global = false;
 
   //========= Handling Program options =========
   po::options_description desc("Allowed options");
@@ -79,42 +81,68 @@ int main(int argc, char** argv) {
   args.apply_global = apply_global;
 
   kbd::LinearWorkflow workflow;
+  std::array<int, 2> search_range = {600, 1100};
+  std::array<double, 2> cd_range = {100, 400};
 
   workflow.preprocessing(file_path, csv_path, default_configs, args);
-  auto [eval_res, acceptance] = workflow.eval();
-
-  if (acceptance < default_configs.EVAL_WARNING_RATE) {
-    fmt::print(fmt::fg(fmt::color::red), "*********** WARNING *************\n");
-    fmt::print(fmt::fg(fmt::color::red),
-               "Please be really cautious since the acceptance rate is {},\n",
-               acceptance);
-    fmt::print(fmt::fg(fmt::color::red),
-               "This may not be the ideal data to be tackled with.\n");
-    fmt::print(fmt::fg(fmt::color::red),
-               "*********** END OF WARNING *************\n");
-  }
-
-  workflow.optimize();
-  workflow.extend_matrix();
-  auto [disp_nodes, param_matrix] = workflow.pivot();
-
+  bool export_original = false;
   auto global_judge = (apply_global ? "global" : "local");
   auto output_json_name = fmt::format(
       "{}_{}.json", default_configs.BASE_OUTPUT_JSON_FILE_NAME_PREFIX,
       global_judge);
   const std::string dumped_json_path = home_path + "/" + output_json_name;
-  kbd::save_arrays_to_json(dumped_json_path, disp_nodes, param_matrix);
-
-  fmt::print("Working done for the optimization part!\n");
+  Eigen::Matrix<double, 5, 5> rm;
+  if (!workflow.first_check() || !workflow.pass_or_not()) {
+    auto [eval_res, acceptance] = workflow.eval();
+    std::cout << "acceptance rate: " << acceptance << std::endl;
+    if (acceptance < default_configs.EVAL_WARNING_RATE) {
+      fmt::print(fmt::fg(fmt::color::red),
+                 "*********** WARNING *************\n");
+      fmt::print(fmt::fg(fmt::color::red),
+                 "Please be really cautious since the acceptance rate is {},\n",
+                 acceptance);
+      fmt::print(fmt::fg(fmt::color::red),
+                 "This may not be the ideal data to be tackled with.\n");
+      fmt::print(fmt::fg(fmt::color::red),
+                 "*********** END OF WARNING *************\n");
+    }
+    kbd::LinearWorkflow::grid_search GridSearcher(&workflow);
+    GridSearcher.optimize_params(search_range, cd_range);
+    auto [matrix, rng_start, cd] = GridSearcher.get_results();
+    std::array<int, 2> best_range = {rng_start, rng_end};
+    bool apply_kbd = workflow.final_check(matrix, best_range, cd);
+    if (apply_kbd) {
+      auto [disp_nodes, reversed_matrix] =
+          workflow.pivot(matrix, best_range, cd);
+      kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
+                                     reversed_matrix, rng_start, cd);
+      rm = reversed_matrix;
+      fmt::print("Working done for the optimization part!\n");
+    } else {
+      auto [disp_nodes, reversed_matrix] = workflow.export_default();
+      kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
+                                     reversed_matrix, rng_start, cd);
+      fmt::print("Working done for the optimization part!\n");
+      export_original = true;
+      rm = reversed_matrix;
+    }
+  } else {
+    auto [disp_nodes, reversed_matrix] = workflow.export_default();
+    kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
+    fmt::print("Working done for the optimization part!\n");
+    export_original = true;
+    rm = reversed_matrix;
+  }
 
   fmt::print("Begin copying ... \n");
   kbd::ops::parallel_copy(file_path, transformed_file_path, default_configs);
 
   fmt::print("Begin transformation ... \n");
-  kbd::ops::parallel_transform(
-      transformed_file_path, param_matrix, workflow.get_focal_val(),
-      workflow.get_baseline_val(), default_configs, args);
-
+  if (export_original) {
+    kbd::ops::parallel_transform(
+        transformed_file_path, rm, workflow.get_focal_val(),
+        workflow.get_baseline_val(), default_configs, args);
+  }
   fmt::print("All tasks done! ... \n");
   return 0;
 }

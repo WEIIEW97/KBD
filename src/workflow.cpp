@@ -38,7 +38,7 @@ namespace kbd {
 
     auto gt_arrow_col = trimmed_df->GetColumnByName(config.GT_DIST_NAME);
     auto est_arrow_col = trimmed_df->GetColumnByName(config.AVG_DISP_NAME);
-    auto error_arrow_col = trimmed_df_->GetColumnByName(config.GT_ERROR_NAME);
+    auto error_arrow_col = trimmed_df->GetColumnByName(config.GT_ERROR_NAME);
 
     auto gt_int64 =
         std::static_pointer_cast<arrow::Int64Array>(gt_arrow_col->chunk(0));
@@ -67,6 +67,8 @@ namespace kbd {
     trimmed_df_ = trimmed_df;
     config_ = config;
     args_ = args;
+
+    lazy_compute_ref_z();
   }
 
   void LinearWorkflow::optimize(OptimizerDiffType diff_type) {
@@ -183,7 +185,7 @@ namespace kbd {
 
   double LinearWorkflow::grid_search::objective(const Eigen::Vector2d& params) {
     auto [mse, pm, lm1, kbd, lm2] =
-        this->eval_params(static_cast<int>(params(0)), params(2));
+        this->eval_params(static_cast<int>(params(0)), params(1));
     return mse;
   }
 
@@ -248,6 +250,58 @@ namespace kbd {
     disp_nodes(disp_nodes_uint16.size()) = disp_val_max_uint16_;
 
     auto matrix_param_by_disp = full_kbd_params5x5_.colwise().reverse();
+
+    return std::make_tuple(disp_nodes, matrix_param_by_disp);
+  }
+
+  std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
+             Eigen::Matrix<double, 5, 5>>
+  LinearWorkflow::pivot(const Eigen::Matrix<double, 5, 5>& m,
+                        const std::array<int, 2>& rng, double cd) {
+    auto lb = static_cast<double>(rng[0]);
+    auto ub = static_cast<double>(rng[1]);
+    auto fb = focal_ * baseline_;
+
+    Eigen::Array<double, 4, 1> extra_range = {lb - cd, lb, ub, ub + cd * sf_};
+    Eigen::Array<double, 4, 1> disp_nodes_double = fb / extra_range;
+    Eigen::Array<uint16_t, 4, 1> disp_nodes_uint16 =
+        (disp_nodes_double * 64).cast<uint16_t>();
+    std::sort(disp_nodes_uint16.data(),
+              disp_nodes_uint16.data() + disp_nodes_uint16.size());
+    Eigen::Array<uint16_t, Eigen::Dynamic, 1> disp_nodes(
+        disp_nodes_uint16.size() + 1);
+    disp_nodes.head(disp_nodes_uint16.size()) = disp_nodes_uint16;
+    disp_nodes(disp_nodes_uint16.size()) = disp_val_max_uint16_;
+
+    auto matrix_param_by_disp = m.colwise().reverse();
+
+    return std::make_tuple(disp_nodes, matrix_param_by_disp);
+  }
+
+  std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
+             Eigen::Matrix<double, 5, 5>>
+  LinearWorkflow::export_default() const {
+    const double lb = 600;
+    const double ub = 3000;
+    const double fb = focal_ * baseline_;
+    const double cd = 100;
+
+    Eigen::Matrix<double, 5, 5> m;
+    m << 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1,
+        0;
+
+    Eigen::Array<double, 4, 1> extra_range = {lb - cd, lb, ub, ub + cd * sf_};
+    Eigen::Array<double, 4, 1> disp_nodes_double = fb / extra_range;
+    Eigen::Array<uint16_t, 4, 1> disp_nodes_uint16 =
+        (disp_nodes_double * 64).cast<uint16_t>();
+    std::sort(disp_nodes_uint16.data(),
+              disp_nodes_uint16.data() + disp_nodes_uint16.size());
+    Eigen::Array<uint16_t, Eigen::Dynamic, 1> disp_nodes(
+        disp_nodes_uint16.size() + 1);
+    disp_nodes.head(disp_nodes_uint16.size()) = disp_nodes_uint16;
+    disp_nodes(disp_nodes_uint16.size()) = disp_val_max_uint16_;
+
+    auto matrix_param_by_disp = m.colwise().reverse();
 
     return std::make_tuple(disp_nodes, matrix_param_by_disp);
   }
@@ -410,7 +464,28 @@ namespace kbd {
     auto pred =
         ops::modify_linear(m_row_major, focal_, baseline_, pm, range, cd, sf_);
     auto gt_error = (error_double_ / gt_double_).abs();
-    auto kbd_error = ((gt_double_ - pred.array()) / gt_double_).abs();
+    Eigen::ArrayXd kbd_error = ((gt_double_ - pred.array()) / gt_double_).abs();
+
+    Eigen::ArrayXd max_error = Eigen::Map<Eigen::ArrayXd>(
+        args_.thresholds.data(), args_.thresholds.size());
+
+    std::unordered_map<double, int> index_map;
+    for (int i = 0; i < gt_double_.size(); ++i) {
+      index_map[gt_double_(i)] = i;
+    }
+
+    Eigen::ArrayXd kbd_error_slice(metric_points_.size());
+    int slice_index = 0;
+    for (double point : metric_points_) {
+      auto it = index_map.find(point);
+      if (it != index_map.end()) {
+        kbd_error_slice(slice_index++) = kbd_error(it->second);
+      }
+    }
+
+    if ((kbd_error_slice < max_error).all())
+      final_pass_ = true;
+
     Eigen::ArrayXd sample_weights(gt_double_.size());
     for (int i = 0; i < gt_double_.size(); ++i) {
       sample_weights(i) =
@@ -419,8 +494,10 @@ namespace kbd {
               ? weights_factor
               : 1.0;
     }
-    auto before_mse = weighted_mse<double>(gt_double_, avg_depth, sample_weights);
-    auto after_mse = weighted_mse<double>(gt_double_, pred.array(), sample_weights);
+    auto before_mse =
+        weighted_mse<double>(gt_double_, avg_depth, sample_weights);
+    auto after_mse =
+        weighted_mse<double>(gt_double_, pred.array(), sample_weights);
     return after_mse < before_mse;
   }
 

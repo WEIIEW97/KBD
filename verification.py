@@ -7,16 +7,12 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
-from .constants import (
-    AVG_DISP_NAME,
-    GT_DIST_NAME,
-    GT_ERROR_NAME,
-)
+from KBD.constants import AVG_DISP_NAME, GT_DIST_NAME, GT_ERROR_NAME
 
-from .helpers import preprocessing
+from KBD.helpers import preprocessing
 
-from .plotters import plot_linear2
-from .utils import json_reader
+from KBD.plotters import plot_linear2
+from KBD.utils import json_reader
 
 
 def verify_cpp(
@@ -24,8 +20,6 @@ def verify_cpp(
     table_path: str,
     save_path: str,
     json_path: str,
-    disjoint_depth_range: tuple,
-    compensate_dist: float = 200,
     scaling_factor: float = 10,
     apply_global: bool = False,
 ):
@@ -36,7 +30,12 @@ def verify_cpp(
     error = df[GT_ERROR_NAME].values
 
     params = json_reader(json_path)
+    if (len(params) != 4): return
     param_matrix = np.array(params["kbd_params"])[::-1, :]
+
+    
+    range_start = params["optimal_range_start"]
+    cd = params["optimal_cd"]
 
     linear_model1 = LinearRegression()
     linear_model1.coef_ = np.array([param_matrix[1, 3]])
@@ -54,25 +53,31 @@ def verify_cpp(
         focal,
         baseline,
         (linear_model1, res, linear_model2),
-        disjoint_depth_range,
-        compensate_dist=compensate_dist,
+        (int(range_start), 3000),
+        compensate_dist=cd,
         scaling_factor=scaling_factor,
         apply_global=apply_global,
         save_path=save_path,
     )
 
 
-if __name__ == "__main___":
-    root_dir = "D:/william/data/KBD/0723"
-    camera_types = [f for f in os.listdir(root_dir)]
-    disjoint_depth_ranges = [600, 3000]
+if __name__ == "__main__":
+    root_dir = "/home/william/extdisk/data/KBD_ACCURACY"
+    camera_types = [
+        f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
+    ]
     sf = 10
-    cd = 400
     for camera_type in camera_types:
+        print(f"processing {camera_type} ...")
         base_path = os.path.join(root_dir, camera_type)
+        fig_path = os.path.join(base_path, "cpp_verify")
+        os.makedirs(fig_path, exist_ok=True)
         file_path = os.path.join(base_path, "image_data")
-        table_name = [f for f in os.listdir(base_path) if f.endswith('.xlsx') and os.path.isfile(os.path.join(base_path, f))][0]
+        table_name = [
+            f
+            for f in os.listdir(base_path)
+            if f.endswith(".xlsx") and os.path.isfile(os.path.join(base_path, f))
+        ][0]
         table_path = os.path.join(base_path, table_name)
         json_path = os.path.join(base_path, "segmented_linear_KBD_params_local.json")
-        verify_cpp(file_path, table_path, base_path, json_path, disjoint_depth_ranges, cd, sf, False)
-
+        verify_cpp(file_path, table_path, fig_path, json_path, sf, False)
