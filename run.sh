@@ -29,6 +29,8 @@ process_directory() {
     local global_flag="$2"
     local file_path="$(realpath "${base_path}/image_data")"
     local csv_path=$(find $base_path -type f -name "depthquality*.csv" | head -n 1)
+    
+    mkdir -p "${base_path}/image_data_lc++"
     local output_path="$(realpath "${base_path}/image_data_lc++")"
 
     if [[ -n "$csv_path" ]]; then

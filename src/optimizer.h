@@ -260,9 +260,7 @@ namespace kbd {
         return Eigen::Vector3d();
       }
 
-      std::unique_ptr<BaseOptimizer> kbd_base_optimizer;
       auto res = Eigen::Vector3d();
-
       if (diff_type_ == NELDER_MEAD) {
         NelderMeadOptimizer<double, Eigen::Vector3d> nm_optimizer(
             std::bind(cost_func_mse<double>, std::placeholders::_1, kbd_x_,
