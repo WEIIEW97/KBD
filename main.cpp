@@ -140,7 +140,7 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
                           default_configs);
 
   fmt::print("Begin transformation ... \n");
-  if (export_original) {
+  if (!export_original) {
     kbd::ops::parallel_transform(
         transformed_file_path.string(), rm, workflow.get_focal_val(),
         workflow.get_baseline_val(), default_configs, args);
