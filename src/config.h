@@ -48,10 +48,10 @@ namespace kbd {
     std::string BASE_OUTPUT_JSON_FILE_NAME_PREFIX =
         "segmented_linear_KBD_params";
     std::map<std::string, std::string> MAPPED_PAIR_DICT = {
-        {"距离(mm)", "actual_depth"},
-        {"相机焦距", "focal"},
-        {"相机基线", "baseline"},
-        {"绝对误差/mm", "absolute_error"},
+        {"DISTANCE(mm)", "actual_depth"},
+        {"Camera_Focal", "focal"},
+        {"Camera_Baseline", "baseline"},
+        {"Absolute_error/mm", "absolute_error"},
     };
   };
 
