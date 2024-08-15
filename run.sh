@@ -30,8 +30,8 @@ process_directory() {
     local file_path="$(realpath "${base_path}/image_data")"
     local csv_path=$(find $base_path -type f -name "depthquality*.csv" | head -n 1)
     
-    mkdir -p "${base_path}/image_data_lc++"
-    local output_path="$(realpath "${base_path}/image_data_lc++")"
+    # mkdir -p "${base_path}/image_data_lc++"
+    # local output_path="$(realpath "${base_path}/image_data_lc++")"
 
     if [[ -n "$csv_path" ]]; then
         echo "find csv!"
@@ -41,13 +41,23 @@ process_directory() {
         local csv_path="${xlsx_path%.xlsx}.csv"
     fi
 
+    local csv_name=$(basename "$csv_path")
+
     # Navigate to the build directory and execute the program
+    # cd build
+    # if [[ "$global_flag" == "true" ]]; then
+    #     ./kbd -f "$file_path" -c "$csv_path" -t "$output_path" -g 2>&1 | tee -a "$log_file"
+    # else
+    #     ./kbd -f "$file_path" -c "$csv_path" -t "$output_path" 2>&1 | tee -a "$log_file"
+    # fi
+
     cd build
     if [[ "$global_flag" == "true" ]]; then
-        ./kbd -f "$file_path" -c "$csv_path" -t "$output_path" -g 2>&1 | tee -a "$log_file"
+        ./kbd -f "$file_path" -c "$csv_name" -g 2>&1 | tee -a "$log_file"
     else
-        ./kbd -f "$file_path" -c "$csv_path" -t "$output_path" 2>&1 | tee -a "$log_file"
+        ./kbd -f "$file_path" -c "$csv_name" 2>&1 | tee -a "$log_file"
     fi
+
     cd - > /dev/null
 }
 

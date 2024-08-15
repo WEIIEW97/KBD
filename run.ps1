@@ -1,6 +1,6 @@
 # Set script parameters and default values
 param(
-    [string]$rootDir = "D:\william\data\KBD\0723",
+    [string]$rootDir = "D:\william\data\KBD\fuck\first",
     [switch]$multiple,
     [switch]$useGlobal
 )
@@ -41,8 +41,9 @@ function Process-Directory {
 
     # Run .\kbd command
     $file_path = Join-Path $basePath "image_data"
-    $output_path = Join-Path $basePath "image_data_lc++"
-    $cmdArgs = "-f `"$file_path`" -c `"$csvPath`" -t `"$output_path`""
+    # $output_path = Join-Path $basePath "image_data_lc++"
+    $csvName = Split-Path -Path $csvPath -Leaf
+    $cmdArgs = "-f `"$file_path`" -c `"$csvName`""
     if ($useGlobal) {
         $cmdArgs += " -g"
     }
@@ -74,7 +75,7 @@ if ($multiple) {
         Process-Directory -basePath $_.FullName
     }
 } else {
-    $specificDir = Join-Path $rootDir "N09ASH24DH0050"
+    $specificDir = Join-Path $rootDir "fuck"
     if (Test-Path $specificDir) {
         Process-Directory -basePath $specificDir
     } else {

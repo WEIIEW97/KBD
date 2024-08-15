@@ -53,12 +53,14 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
 
   if (!fs::exists(transformed_file_path)) {
     if (fs::create_directory(transformed_file_path)) {
-      fmt::print("Directory created successfully: {}\n", transformed_file_path);
+      fmt::print("Directory created successfully: {}\n",
+                 transformed_file_path.string());
     } else {
       fmt::print("Failed to create directory. \n");
     }
   } else {
-    fmt::print("Directory already exists: {}\n", transformed_file_path);
+    fmt::print("Directory already exists: {}\n",
+               transformed_file_path.string());
   }
   kbd::Config default_configs = kbd::Config();
   kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
@@ -105,6 +107,8 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
       auto [disp_nodes, reversed_matrix] =
           workflow.pivot(matrix, best_range, cd);
       kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
+      // kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
+      //                                reversed_matrix, rng_start, cd);
       rm = reversed_matrix;
       fmt::print("Working done for the optimization part!\n");
       if (workflow.final_pass_) {
@@ -115,6 +119,8 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
     } else {
       auto [disp_nodes, reversed_matrix] = workflow.export_default();
       kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
+      // kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
+      //                                reversed_matrix, rng_start, cd);
       fmt::print("Working done for the optimization part!\n");
       export_original = true;
       rm = reversed_matrix;
