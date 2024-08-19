@@ -60,6 +60,25 @@ namespace kbd {
       }
     }
 
+    void transform(const std::string& path,
+                   const Eigen::Matrix<double, 5, 5>& params_matrix,
+                   double focal, double baseline, const Config& configs,
+                   const JointSmoothArguments& arguments) {
+      auto folders = retrieve_folder_names(path);
+      auto range = arguments.disjoint_depth_range;
+      auto cd = arguments.compensate_dist;
+      auto sf = arguments.scaling_factor;
+      auto h = configs.H;
+      auto w = configs.W;
+      auto subfix = configs.SUBFIX;
+      for (const auto& folder : folders) {
+        auto full_path = fs::path(path) / folder / subfix;
+        linear_transform_kernel(full_path.string(), h, w, focal, baseline,
+                                params_matrix, cd, sf, range);
+      }
+      fmt::print("Transformating data done ...\n");
+    }
+
     void parallel_transform(const std::string& path,
                             const Eigen::Matrix<double, 5, 5>& params_matrix,
                             double focal, double baseline,

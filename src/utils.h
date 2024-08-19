@@ -47,11 +47,11 @@ namespace kbd {
     }
     file.close();
 
-    Eigen::Map<ndArray<uint16_t>> matrix(buffer.data(), h, w);
+    Eigen::Map<ndArray<T>> matrix(buffer.data(), h, w);
 
     // Copy the data to an Eigen::Matrix (optional, to ensure the data is owned
     // by the matrix)
-    ndArray<uint16_t> eigen_matrix = matrix;
+    ndArray<T> eigen_matrix = matrix;
 
     return eigen_matrix;
   }

@@ -27,7 +27,7 @@ if __name__ == "__main__":
     compensate_dist = 400
     scaling_factor = 10
 
-    root_dir = "D:/william/data/KBD/fuck"
+    root_dir = "/home/william/extdisk/data/KBD"
     # camera_types = [
     #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     # ]
@@ -53,8 +53,8 @@ if __name__ == "__main__":
         N = len(camera_types)
         p = 0
         for camera_type in camera_types:
-            # if camera_type != "fuck":
-            #     continue
+            if camera_type != "N09ASH24DH0082":
+                continue
             print(f"begin to process {camera_type}")
             base_path = os.path.join(root_dir, camera_type)
             file_path = os.path.join(base_path, "image_data")
@@ -62,7 +62,15 @@ if __name__ == "__main__":
                 f
                 for f in os.listdir(base_path)
                 if f.endswith(".xlsx") and os.path.isfile(os.path.join(base_path, f))
-            ][0]
+            ]
+            if len(table_name) == 0:
+                table_name = [
+                    f
+                    for f in os.listdir(base_path)
+                    if f.endswith(".csv") and os.path.isfile(os.path.join(base_path, f))
+                ]
+            
+            table_name = table_name[0]
             
             table_path = os.path.join(base_path, table_name)
             copy_path = os.path.join(base_path, "image_data_l")
@@ -203,25 +211,25 @@ if __name__ == "__main__":
                 p += 1
             print("===> Working done! Parameters are being generated.")
 
-            # print("Beging to copy and transform depth raws ...")
-            # parallel_copy(file_path, copy_path)
-            # if not export_original:
-            #     apply_transformation_linear(
-            #         copy_path,
-            #         matrix,
-            #         focal,
-            #         baseline,
-            #         best_range,
-            #         compensate_dist,
-            #         scaling_factor,
-            #     )
-            # print("===> Working done! Transformed raw depths are being generated.")
+            print("Beging to copy and transform depth raws ...")
+            parallel_copy(file_path, copy_path)
+            if not export_original:
+                apply_transformation_linear(
+                    copy_path,
+                    matrix,
+                    focal,
+                    baseline,
+                    best_range,
+                    best_cd,
+                    scaling_factor,
+                )
+            print("===> Working done! Transformed raw depths are being generated.")
         
-        print(f"The passing rate is {p/N} ...")
-        failed_df = pd.DataFrame()
-        failed_df["devices"] = failed_devices
-        failed_df.to_csv(os.path.join(root_dir, "failed_devices_cdmin100_v2.csv"))
+        # print(f"The passing rate is {p/N} ...")
+        # failed_df = pd.DataFrame()
+        # failed_df["devices"] = failed_devices
+        # failed_df.to_csv(os.path.join(root_dir, "failed_devices_cdmin100_v2.csv"))
 
-        cd_df = pd.DataFrame()
-        cd_df["best_cd"] = best_cds
-        cd_df.to_csv(os.path.join(root_dir, "best_cd_search_min100_v2.csv"))
+        # cd_df = pd.DataFrame()
+        # cd_df["best_cd"] = best_cds
+        # cd_df.to_csv(os.path.join(root_dir, "best_cd_search_min100_v2.csv"))

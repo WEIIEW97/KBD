@@ -180,7 +180,7 @@ class GridSearch2D:
         # Convert to numpy for faster calculations
         self.actual_depth = df[GT_DIST_NAME].values
         self.avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-        self.error = df[GT_ERROR_NAME].values
+        self.error = (df[AVG_DIST_NAME]-df[GT_DIST_NAME]).values
 
     def eval_parameters(self, range_start, compensate_dist):
         disjoint_depth_range = [range_start, 3000]
@@ -290,7 +290,7 @@ class BayesSearch2D:
         # Convert to numpy for faster calculations
         self.actual_depth = df[GT_DIST_NAME].values
         self.avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-        self.error = df[GT_ERROR_NAME].values
+        self.error = (df[AVG_DIST_NAME]-df[GT_DIST_NAME]).values
 
     def eval_parameters(self, range_start, compensate_dist):
         disjoint_depth_range = (range_start, 3000)
@@ -388,7 +388,7 @@ def generate_parameters_linear_search(
 ):
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-    error = df[GT_ERROR_NAME].values
+    error = (df[AVG_DIST_NAME]-df[GT_DIST_NAME]).values
 
     STEP = 50
 
@@ -491,7 +491,7 @@ def generate_parameters_linear(
 ):
     actual_depth = df[GT_DIST_NAME].values
     avg_50x50_anchor_disp = df[AVG_DISP_NAME].values
-    error = df[GT_ERROR_NAME].values
+    error = (df[AVG_DIST_NAME]-df[GT_DIST_NAME]).values
 
     jlm = JointLinearSmoothingOptimizer(
         actual_depth,

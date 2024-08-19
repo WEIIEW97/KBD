@@ -55,8 +55,8 @@ namespace kbd {
       ndArray<double> out(m.rows(), m.cols());
       out.setZero();
 
-      double lb = static_cast<double>(disjoint_depth_range[0]);
-      double ub = static_cast<double>(disjoint_depth_range[1]);
+      auto lb = static_cast<double>(disjoint_depth_range[0]);
+      auto ub = static_cast<double>(disjoint_depth_range[1]);
 
       auto m_double = m.template cast<double>().array();
       auto d_double = safe_divide(fb, m_double);
@@ -67,12 +67,12 @@ namespace kbd {
           (m_double >= lb - compensate_dist && m_double < lb)
               .select(fb / (param_matrix(1, 3) * d_double + param_matrix(1, 4)),
                       0.0) +
-          (m_double >= lb && m_double < ub)
+          (m_double >= lb && m_double <= ub)
               .select(param_matrix(2, 0) * fb /
                               (d_double + param_matrix(2, 1)) +
                           param_matrix(2, 2),
                       0.0) +
-          (m_double >= ub && m_double < ub + compensate_dist * scaling_factor)
+          (m_double > ub && m_double < ub + compensate_dist * scaling_factor)
               .select(fb / (param_matrix(3, 3) * d_double + param_matrix(3, 4)),
                       0.0) +
           (m_double >= ub + compensate_dist * scaling_factor)
@@ -83,9 +83,11 @@ namespace kbd {
       } else { // Convert and clamp the final results to uint16_t using
                // unaryExpr
         auto clamp_cast = [](double v) {
-          return static_cast<uint16_t>(std::clamp(v, 0.0, 65535.0));
+          return static_cast<uint16_t>(v);  // there is no way that v < 0 or v > 65535
         };
-        return out.unaryExpr(clamp_cast);
+        ndArray<uint16_t> out_u16(out.rows(), out.cols());
+        out_u16 = out.unaryExpr(clamp_cast);
+        return out_u16;
       }
     }
 
@@ -116,6 +118,10 @@ namespace kbd {
 
     void parallel_copy(const std::string& src, const std::string& dst,
                        const Config& configs);
+    void transform(const std::string& path,
+                   const Eigen::Matrix<double, 5, 5>& params_matrix,
+                   double focal, double baseline, const Config& configs,
+                   const JointSmoothArguments& arguments);
     void parallel_transform(const std::string& path,
                             const Eigen::Matrix<double, 5, 5>& params_matrix,
                             double focal, double baseline,

@@ -33,10 +33,10 @@ else()
     endif()
 endif()
 
-
 add_executable(${PROJECT_NAME} 
-       main.cpp
-        # test/test_main.cpp
+        main.cpp
+#        main_debug.cpp
+#        test/test_main.cpp
         ${sources}
 )
 
@@ -73,8 +73,7 @@ else()
                 ${CERES_LIBRARIES}
                 ${Boost_PROGRAM_OPTIONS_LIBRARY}
         )  
-        endif()
-
+endif()
 
 target_compile_definitions(
         ${PROJECT_NAME}

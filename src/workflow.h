@@ -74,7 +74,7 @@ namespace kbd {
                Eigen::Matrix<double, 5, 5>>
     pivot(const Eigen::Matrix<double, 5, 5>& m, const std::array<int, 2>& rng,
           double cd);
-    std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
+    [[nodiscard]] std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
                Eigen::Matrix<double, 5, 5>>
     export_default() const;
     std::tuple<std::map<double, double>, double> eval();
@@ -90,13 +90,13 @@ namespace kbd {
   private:
     std::tuple<double, Eigen::Vector<double, 6>>
     evaluate_target(const Eigen::Matrix<double, 5, 5>& param_matrix,
-                    const std::array<int, 2>& rg);
+                    const std::array<int, 2>& rg, double cd);
     void lazy_compute_ref_z();
 
   private:
     double focal_{}, baseline_{}, cd_{}, sf_{};
     bool apply_global_ = false;
-    Eigen::ArrayXd gt_double_, est_double_, error_double_;
+    Eigen::ArrayXd gt_double_, est_double_, error_double_, avg_z_double_;
     Eigen::Vector2d lm1_, lm2_;
     Eigen::Vector3d kbd_res_;
     std::array<int, 2> disjoint_depth_range_ = {0};

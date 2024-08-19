@@ -108,11 +108,11 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
     if (apply_kbd) {
       auto [disp_nodes, reversed_matrix] =
           workflow.pivot(matrix, best_range, cd);
-      kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
-      // kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
-      //                                reversed_matrix, rng_start, cd);
+      // kbd::save_arrays_to_json(dumped_json_path, disp_nodes,
+      // reversed_matrix);
+      kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
+                                     reversed_matrix, rng_start, cd);
       m = matrix;
-
       fmt::print("Working done for the optimization part!\n");
       if (workflow.final_pass_) {
         status = ReturnStatus::KBD_AND_PASSED;
@@ -121,9 +121,10 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
       }
     } else {
       auto [disp_nodes, reversed_matrix] = workflow.export_default();
-      kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
-      // kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
-      //                                reversed_matrix, rng_start, cd);
+      // kbd::save_arrays_to_json(dumped_json_path, disp_nodes,
+      // reversed_matrix);
+      kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
+                                     reversed_matrix, rng_start, cd);
       fmt::print("Working done for the optimization part!\n");
       export_original = true;
       m = matrix;
