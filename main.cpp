@@ -40,7 +40,7 @@ enum class ReturnStatus : int {
 };
 
 ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
-                    int cy, int cx, bool apply_global = false) {
+                    int h, int w, int cy, int cx, bool apply_global = false) {
   fs::path fs_file_path(file_path);
   auto base_path = fs_file_path.parent_path();
   auto csv_path = base_path / csv_name;
@@ -67,6 +67,11 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
 
   if (cy != 0 && cx != 0)
     default_configs.ANCHOR_POINT = {cy, cx};
+
+  if (h != 0 && w != 0) {
+    default_configs.H = h;
+    default_configs.W = w;
+  }
 
   kbd::LinearWorkflow workflow;
   std::array<int, 2> search_range = {600, 1100};
@@ -157,7 +162,7 @@ int main(int argc, char** argv) {
 
   std::string file_path, csv_name;
   bool apply_global = false;
-  int cy, cx;
+  int cy, cx, h, w;
 
   //========= Handling Program options =========
   po::options_description desc("Allowed options");
@@ -166,6 +171,8 @@ int main(int argc, char** argv) {
                      "root directory for the raw data, e.g. 'image_data/'")(
       "csv_name,c", po::value<std::string>(&csv_name)->default_value(""),
       "path to the .csv measured information.")(
+      "height,h", po::value<int>(&h)->default_value(0), "image height")(
+      "width,w", po::value<int>(&w)->default_value(0), "image width")(
       "anchor_y,y", po::value<int>(&cy)->default_value(0), "anchor point y")(
       "anchor_x,x", po::value<int>(&cx)->default_value(0),
       "anchor point x")("apply_global,g", po::bool_switch(&apply_global),
@@ -180,7 +187,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  auto return_status = pshyco(file_path, csv_name, cy, cx);
+  auto return_status = pshyco(file_path, csv_name, h, w, cy, cx);
 
   if (return_status == ReturnStatus::ERROR) {
     fs::path fs_file_path(file_path);
