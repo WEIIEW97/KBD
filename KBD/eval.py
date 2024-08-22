@@ -23,9 +23,9 @@ def eval(df: pd.DataFrame, stage=100):
     total_bins = len(eval_res)
     accept = 0
     for k, v in eval_res.items():
-        if k <= 1000 and v < 0.02:
+        if k <= 1000 and v < NEAR_THR:
             accept += 1
-        elif k <= 2000 and v < 0.04:
+        elif k <= 2000 and v < FAR_THR:
             accept += 1
     acceptance = accept / total_bins
     return eval_res, acceptance
@@ -33,16 +33,16 @@ def eval(df: pd.DataFrame, stage=100):
 
 def pass_or_not(df: pd.DataFrame):
     df["absolute_error_rate"] = df[GT_ERROR_NAME] / df[GT_DIST_NAME]
-    metric_dist = [300, 500, 600, 1000, 1500, 2000]
+    metric_dist = TARGET_POINTS
 
     for metric in metric_dist:
         quali = df[df[GT_DIST_NAME] == metric]["absolute_error_rate"]
         quali = np.abs(quali)
-        if metric in (300, 500, 600, 1000):
-            if not (quali <= 0.02).all():
+        if metric in metric_dist[0:4]:
+            if not (quali <= NEAR_THR).all():
                 return False
-        elif metric in (1500, 2000):
-            if not (quali <= 0.04).all():
+        elif metric in metric_dist[4:]:
+            if not (quali <= FAR_THR).all():
                 return False
     return True
 
@@ -81,7 +81,7 @@ def evaluate_target(
     disjoint_depth_range,
     compensate_dist,
     scaling_factor,
-    z=[300, 500, 600, 1000, 1500, 2000],
+    z=TARGET_POINTS,
 ):
     z_array = np.array(z)
     d_array = focal * baseline / z_array

@@ -104,71 +104,16 @@ def calculate_mean_value(
     return dist_dict
 
 
-def sampling_strategy(
-    rootpath: str, folders: list[str], method="mean"
-) -> dict[str, float]:
-    assert method in ("mean", "median")
-    dist_dict = {}
-    for folder in folders:
-        distance = folder.split("_")[0]
-        rawpath = os.path.join(rootpath, folder, SUBFIX)
-        paths = [
-            f for f in os.listdir(rawpath) if os.path.isfile(os.path.join(rawpath, f))
-        ]
-        mean_dist_holder = []
-        for path in paths:
-            path = os.path.join(rawpath, path)
-            raw = load_raw(path, H, W)
-            valid_raw = raw[
-                ANCHOR_POINT[0] - 25 : ANCHOR_POINT[0] + 25,
-                ANCHOR_POINT[1] - 25 : ANCHOR_POINT[1] + 25,
-            ]
-            if method == "mean":
-                mu = np.mean(valid_raw)
-            elif method == "median":
-                mu = np.median(valid_raw)
-            else:
-                mu = 0
-            mean_dist_holder.append(mu)
-        final_mu = np.mean(mean_dist_holder)
-        dist_dict[distance] = final_mu
-    return dist_dict
-
-
 def map_table(df: pd.DataFrame, dist_dict: dict) -> tuple[float, float]:
     df[AVG_DIST_NAME] = df[GT_DIST_NAME].astype(str).map(dist_dict)
     focal = df[FOCAL_NAME].iloc[0]  # assume focal value is the same
     baseline = df[BASLINE_NAME].iloc[0]  # assume basline value is the same
 
-    focal *=  N9_FOCAL_MULTIPLIER# very dirty hack
+    focal *=  FOCAL_MULTIPLIER  # very dirty hack
     df[AVG_DISP_NAME] = focal * baseline / df[AVG_DIST_NAME]
     # df[GT_DISP_NAME] = focal * baseline / df[GT_DIST_NAME]
     # df[GT_DISP_ERROR_NAME] = df[GT_DISP_NAME] - df[AVG_DISP_NAME]
     return focal, baseline
-
-
-def map_table_debug(
-    df: pd.DataFrame, avg_dist_dict: dict, median_dist_dict: dict
-) -> tuple[float, float]:
-    df[AVG_DIST_NAME] = df[GT_DIST_NAME].astype(str).map(avg_dist_dict)
-    df[MEDIAN_DIST_NAME] = df[GT_DIST_NAME].astype(str).map(median_dist_dict)
-    focal = df[FOCAL_NAME].iloc[0]  # assume focal value is the same
-    baseline = df[BASLINE_NAME].iloc[0]  # assume basline value is the same
-
-    df[AVG_DISP_NAME] = focal * baseline / df[AVG_DIST_NAME]
-    df[MEDIAN_DISP_NAME] = focal * baseline / df[MEDIAN_DIST_NAME]
-
-    return focal, baseline
-
-
-def sampling_strategy_criterion(path: str, table_path: str, save_path: str):
-    all_distances = retrive_folder_names(path)
-    mean_dists = calculate_mean_value(path, all_distances)
-    median_dists = calculate_mean_value(path, all_distances, True)
-    df = read_table(table_path, pair_dict=MAPPED_PAIR_DICT_DEBUG)
-    _, _ = map_table_debug(df, mean_dists, median_dists)
-
-    df.to_excel(save_path)
 
 
 def preprocessing(path, table_path, paid_dict=MAPPED_PAIR_DICT):
