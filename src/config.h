@@ -24,17 +24,18 @@
 namespace kbd {
 
   struct Config {
+    explicit Config(const std::string& mode = "N9") : mode_(mode) {
+      initialize();
+    }
     uint16_t DISP_VAL_MAX_UINT16 = 32767;
     std::string SUBFIX = "DEPTH/raw";
     std::string CAMPARAM_NAME = "camparam.txt";
-    int H = 480;
-    int W = 640;
+    int H, W;
     float EPSILON = 1e-6;
     int EVAL_STAGE_STEPS = 200;
     double EVAL_WARNING_RATE = 0.5f;
-    double N9_FOCAL_MULTIPLIER = 1.6f;
-
-    std::vector<int> ANCHOR_POINT = {H / 2, W / 2};
+    double FOCAL_MULTIPLIER = 1.0f;
+    std::vector<int> ANCHOR_POINT;
 
     std::string AVG_DIST_NAME = "avg_depth_50x50_anchor";
     std::string AVG_DISP_NAME = "avg_disp_50x50_anchor";
@@ -53,15 +54,55 @@ namespace kbd {
         {"Camera_Baseline", "baseline"},
         {"Absolute_error/mm", "absolute_error"},
     };
+
+    void initialize() {
+      if (mode_ == "N9") {
+        H = 480, W = 640;
+        FOCAL_MULTIPLIER = 1.6f;
+        ANCHOR_POINT = {H / 2, W / 2};
+      } else if (mode_ == "M1F") {
+        H = 400, W = 640;
+        FOCAL_MULTIPLIER = 1.0f;
+        ANCHOR_POINT = {H / 2, W / 2};
+      } else {
+        std::runtime_error(
+            "Unsupported mode! Please recheck the requirements!");
+      }
+    }
+
+  private:
+    std::string mode_;
   };
 
   struct JointSmoothArguments {
+    explicit JointSmoothArguments(const std::string& mode = "N9")
+        : mode_(mode) {
+      initialize();
+    }
     std::array<int, 2> disjoint_depth_range = {600, 3000};
     std::array<int, 6> metric_points = {300, 500, 600, 1000, 1500, 2000};
-    std::array<double, 6> thresholds = {0.02, 0.02, 0.02, 0.02, 0.04, 0.04};
-    double compensate_dist = 400;
+    std::array<double, 6> thresholds;
+    double near_thr;
+    double far_thr;
+    double compensate_dist = 200;
     double scaling_factor = 10;
     bool apply_global = false;
+
+    void initialize() {
+      if (mode_ == "N9") {
+        thresholds = {0.02, 0.02, 0.02, 0.02, 0.04, 0.04};
+        near_thr = 0.02, far_thr = 0.04;
+      } else if (mode_ == "M1F") {
+        thresholds = {0.02, 0.02, 0.02, 0.02, 0.02, 0.02};
+        near_thr = 0.02, far_thr = 0.02;
+      } else {
+        std::runtime_error(
+            "Unsupported mode! Please recheck the requirements!");
+      }
+    }
+
+  private:
+    std::string mode_;
   };
 } // namespace kbd
 

@@ -40,7 +40,7 @@ enum class ReturnStatus : int {
 };
 
 ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
-                    int cy, int cx, bool apply_global = false) {
+                    const std::string& mode, int cy, int cx, bool apply_global = false) {
   fs::path fs_file_path(file_path);
   auto base_path = fs_file_path.parent_path();
   auto csv_path = base_path / csv_name;
@@ -62,17 +62,17 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
     fmt::print("Directory already exists: {}\n",
                transformed_file_path.string());
   }
-  kbd::Config default_configs = kbd::Config();
-  kbd::JointSmoothArguments args = kbd::JointSmoothArguments();
+  kbd::Config default_configs = kbd::Config(mode);
+  kbd::JointSmoothArguments args = kbd::JointSmoothArguments(mode);
 
   if (cy != 0 && cx != 0)
     default_configs.ANCHOR_POINT = {cy, cx};
 
-  kbd::LinearWorkflow workflow;
+  kbd::LinearWorkflow workflow(default_configs, args);
   std::array<int, 2> search_range = {600, 1100};
   std::array<double, 2> cd_range = {100, 400};
 
-  workflow.preprocessing(file_path, csv_path.string(), default_configs, args);
+  workflow.preprocessing(file_path, csv_path.string());
   bool export_original = false;
   auto global_judge = (apply_global ? "global" : "local");
   auto output_json_name = fmt::format(
@@ -108,11 +108,11 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
     if (apply_kbd) {
       auto [disp_nodes, reversed_matrix] =
           workflow.pivot(matrix, best_range, cd);
-      // kbd::save_arrays_to_json(dumped_json_path, disp_nodes,
-      // reversed_matrix);
+      // kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
       kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
                                      reversed_matrix, rng_start, cd);
       m = matrix;
+
       fmt::print("Working done for the optimization part!\n");
       if (workflow.final_pass_) {
         status = ReturnStatus::KBD_AND_PASSED;
@@ -121,8 +121,7 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
       }
     } else {
       auto [disp_nodes, reversed_matrix] = workflow.export_default();
-      // kbd::save_arrays_to_json(dumped_json_path, disp_nodes,
-      // reversed_matrix);
+      // kbd::save_arrays_to_json(dumped_json_path, disp_nodes, reversed_matrix);
       kbd::save_arrays_to_json_debug(dumped_json_path, disp_nodes,
                                      reversed_matrix, rng_start, cd);
       fmt::print("Working done for the optimization part!\n");
@@ -156,7 +155,7 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
 
 int main(int argc, char** argv) {
 
-  std::string file_path, csv_name;
+  std::string file_path, csv_name, mode;
   bool apply_global = false;
   int cy, cx;
 
@@ -167,6 +166,8 @@ int main(int argc, char** argv) {
                      "root directory for the raw data, e.g. 'image_data/'")(
       "csv_name,c", po::value<std::string>(&csv_name)->default_value(""),
       "path to the .csv measured information.")(
+      "mode,m", po::value<std::string>(&mode)->default_value("N9"),
+      "KBD program target mode.")(
       "anchor_y,y", po::value<int>(&cy)->default_value(0), "anchor point y")(
       "anchor_x,x", po::value<int>(&cx)->default_value(0),
       "anchor point x")("apply_global,g", po::bool_switch(&apply_global),
@@ -181,7 +182,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  auto return_status = pshyco(file_path, csv_name, cy, cx);
+  auto return_status = pshyco(file_path, csv_name, mode, cy, cx);
 
   if (return_status == ReturnStatus::ERROR) {
     fs::path fs_file_path(file_path);

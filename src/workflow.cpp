@@ -26,19 +26,17 @@
 
 namespace kbd {
   void LinearWorkflow::preprocessing(const std::string& file_path,
-                                     const std::string& csv_path,
-                                     const Config& config,
-                                     const JointSmoothArguments& args) {
+                                     const std::string& csv_path) {
     auto table_parser = ArrowTableReader();
     auto df = table_parser.read_csv(csv_path);
-    auto trimmed_df = table_parser.trim_table(config.MAPPED_PAIR_DICT);
+    auto trimmed_df = table_parser.trim_table(config_.MAPPED_PAIR_DICT);
     auto dist_dict = calculate_mean_value(
-        file_path, retrieve_folder_names(file_path), config);
-    auto status = table_parser.map_table(trimmed_df, config, dist_dict);
+        file_path, retrieve_folder_names(file_path), config_);
+    auto status = table_parser.map_table(trimmed_df, config_, dist_dict);
 
-    auto gt_arrow_col = trimmed_df->GetColumnByName(config.GT_DIST_NAME);
-    auto est_arrow_col = trimmed_df->GetColumnByName(config.AVG_DISP_NAME);
-    auto avg_z_arrow_col = trimmed_df->GetColumnByName(config.AVG_DIST_NAME);
+    auto gt_arrow_col = trimmed_df->GetColumnByName(config_.GT_DIST_NAME);
+    auto est_arrow_col = trimmed_df->GetColumnByName(config_.AVG_DISP_NAME);
+    auto avg_z_arrow_col = trimmed_df->GetColumnByName(config_.AVG_DIST_NAME);
 
     auto gt_int64 =
         std::static_pointer_cast<arrow::Int64Array>(gt_arrow_col->chunk(0));
@@ -63,16 +61,13 @@ namespace kbd {
     est_double_ = est_eigen_array.cast<double>();
     error_double_ = error_eigen_array;
     avg_z_double_ = avg_z_eigen_array.cast<double>();
-    disjoint_depth_range_ = args.disjoint_depth_range;
-    cd_ = args.compensate_dist;
-    sf_ = args.scaling_factor;
-    apply_global_ = args.apply_global;
+    disjoint_depth_range_ = args_.disjoint_depth_range;
+    cd_ = args_.compensate_dist;
+    sf_ = args_.scaling_factor;
+    apply_global_ = args_.apply_global;
     full_kbd_params5x5_.setZero();
-    disp_val_max_uint16_ = config.DISP_VAL_MAX_UINT16;
+    disp_val_max_uint16_ = config_.DISP_VAL_MAX_UINT16;
     trimmed_df_ = trimmed_df;
-    config_ = config;
-    args_ = args;
-
     lazy_compute_ref_z();
   }
 
@@ -126,8 +121,8 @@ namespace kbd {
     // After collecting all results, analyze them based on the given conditions
     for (int i = 0; i < sz; ++i) {
       auto z_er = z_error_rates[i];
-      if ((z_er.head(4).array() < 0.02).all() &&
-          (z_er.tail(1).array() < 0.04).all()) {
+      if ((z_er.head(4).array() < args_.near_thr).all() &&
+          (z_er.tail(1).array() < args_.far_thr).all()) {
         if (mses[i] < lowest_mse) {
           lowest_mse = mses[i];
           best_range = ranges[i];
@@ -380,7 +375,7 @@ namespace kbd {
     int total_bins = eval_res.size();
     int accept = 0;
     for (const auto& [k, v] : eval_res) {
-      if ((k <= 1000 && v < 0.02) || (k <= 2000 && v < 0.04)) {
+      if ((k <= 1000 && v < args_.near_thr) || (k <= 2000 && v < args_.far_thr)) {
         accept++;
       }
     }
@@ -391,10 +386,10 @@ namespace kbd {
   bool LinearWorkflow::pass_or_not() {
     std::unordered_map<int, double> metric_thresholds;
     for (int i = 0; i < 4; ++i) {
-      metric_thresholds[metric_points_[i]] = 0.02;
+      metric_thresholds[metric_points_[i]] = args_.near_thr;
     }
     for (int i = 4; i < metric_points_.size(); ++i) {
-      metric_thresholds[metric_points_[i]] = 0.04;
+      metric_thresholds[metric_points_[i]] = args_.far_thr;
     }
 
     int sz = gt_double_.size();
@@ -444,7 +439,6 @@ namespace kbd {
     ndArray<double> m_row_major = avg_depth;
     auto pred =
         ops::modify_linear(m_row_major, focal_, baseline_, pm, range, cd, sf_);
-    auto gt_error = (error_double_ / gt_double_).abs();
     Eigen::ArrayXd kbd_error = ((gt_double_ - pred.array()) / gt_double_).abs();
 
     Eigen::ArrayXd max_error = Eigen::Map<Eigen::ArrayXd>(

@@ -118,7 +118,7 @@ namespace kbd {
     // rows)
     focal_ = focal_array->Value(0);
     /************************************************************** */
-    focal_ *= kbd_config.N9_FOCAL_MULTIPLIER;   // very dirty hack
+    focal_ *= kbd_config.FOCAL_MULTIPLIER;   // very dirty hack
     /************************************************************** */
     baseline_ = baseline_array->Value(0);
 

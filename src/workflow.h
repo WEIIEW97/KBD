@@ -30,12 +30,10 @@ namespace kbd {
 
   class LinearWorkflow {
   public:
-    LinearWorkflow() = default;
-    ~LinearWorkflow() = default;
+    LinearWorkflow(const Config& config, const JointSmoothArguments& args) : config_(config), args_(args) {}
 
     void preprocessing(const std::string& file_path,
-                       const std::string& csv_path, const Config& config,
-                       const JointSmoothArguments& args);
+                       const std::string& csv_path);
     void optimize(OptimizerDiffType diff_type = OptimizerDiffType::NELDER_MEAD);
     void
     line_search(const std::array<int, 2>& search_range,
@@ -106,9 +104,9 @@ namespace kbd {
     ndArray<double> ref_z_;
     uint16_t disp_val_max_uint16_{};
     int step_ = 50; // can be modified accordingly
-    std::array<int, 6> metric_points_ = JointSmoothArguments().metric_points;
     Config config_;
     JointSmoothArguments args_;
+    std::array<int, 6> metric_points_ = args_.metric_points;
 
   public:
     std::shared_ptr<arrow::Table> trimmed_df_;
