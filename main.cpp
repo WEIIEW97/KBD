@@ -40,7 +40,8 @@ enum class ReturnStatus : int {
 };
 
 ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
-                    const std::string& mode, int cy, int cx, bool apply_global = false) {
+                    const std::string& mode, int cy, int cx,
+                    bool apply_global = false) {
   fs::path fs_file_path(file_path);
   auto base_path = fs_file_path.parent_path();
   auto csv_path = base_path / csv_name;

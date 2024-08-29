@@ -30,7 +30,10 @@ namespace kbd {
 
   class LinearWorkflow {
   public:
-    LinearWorkflow(const Config& config, const JointSmoothArguments& args) : config_(config), args_(args) {}
+    LinearWorkflow(const Config& config, const JointSmoothArguments& args)
+        : config_(config), args_(args) {}
+    LinearWorkflow(Config&& config, JointSmoothArguments&& args)
+        : config_(std::move(config)), args_(std::move(args)) {}
 
     void preprocessing(const std::string& file_path,
                        const std::string& csv_path);
@@ -73,7 +76,7 @@ namespace kbd {
     pivot(const Eigen::Matrix<double, 5, 5>& m, const std::array<int, 2>& rng,
           double cd);
     [[nodiscard]] std::tuple<Eigen::Array<uint16_t, Eigen::Dynamic, 1>,
-               Eigen::Matrix<double, 5, 5>>
+                             Eigen::Matrix<double, 5, 5>>
     export_default() const;
     std::tuple<std::map<double, double>, double> eval();
     bool pass_or_not();

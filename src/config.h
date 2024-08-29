@@ -27,6 +27,9 @@ namespace kbd {
     explicit Config(const std::string& mode = "N9") : mode_(mode) {
       initialize();
     }
+    explicit Config(std::string&& mode = "N9") : mode_(std::move(mode)) {
+      initialize();
+    }
     uint16_t DISP_VAL_MAX_UINT16 = 32767;
     std::string SUBFIX = "DEPTH/raw";
     std::string CAMPARAM_NAME = "camparam.txt";
@@ -77,6 +80,10 @@ namespace kbd {
   struct JointSmoothArguments {
     explicit JointSmoothArguments(const std::string& mode = "N9")
         : mode_(mode) {
+      initialize();
+    }
+    explicit JointSmoothArguments(std::string&& mode = "N9")
+        : mode_(std::move(mode)) {
       initialize();
     }
     std::array<int, 2> disjoint_depth_range = {600, 3000};
