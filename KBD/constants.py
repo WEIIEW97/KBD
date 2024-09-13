@@ -1,5 +1,5 @@
 # top mode parsing
-mode = 'M1F'
+mode = 'N9'
 
 class Config:
     def __init__(self, mode="N9", cy=0, cx=0):
