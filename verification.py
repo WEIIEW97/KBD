@@ -62,7 +62,7 @@ def verify_cpp(
 
 
 if __name__ == "__main__":
-    root_dir = "D:/william/data/KBD/0912"
+    root_dir = "D:/william/data/KBD/0913-2"
     camera_types = [
         f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     ]

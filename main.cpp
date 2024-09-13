@@ -40,7 +40,7 @@ enum class ReturnStatus : int {
 };
 
 ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
-                    const std::string& mode, int cy, int cx,
+                    const std::string& mode, int cy, int cx, float focal_scalar,
                     bool apply_global = false) {
   fs::path fs_file_path(file_path);
   auto base_path = fs_file_path.parent_path();
@@ -68,6 +68,9 @@ ReturnStatus pshyco(const std::string& file_path, const std::string& csv_name,
 
   if (cy != 0 && cx != 0)
     default_configs.ANCHOR_POINT = {cy, cx};
+
+  if (focal_scalar != 0) 
+    default_configs.FOCAL_MULTIPLIER = focal_scalar;
 
   kbd::LinearWorkflow workflow(default_configs, args);
   std::array<int, 2> search_range = {600, 1100};
@@ -159,6 +162,7 @@ int main(int argc, char** argv) {
   std::string file_path, csv_name, mode;
   bool apply_global = false;
   int cy, cx;
+  float focal_scalar;
 
   //========= Handling Program options =========
   po::options_description desc("Allowed options");
@@ -172,7 +176,9 @@ int main(int argc, char** argv) {
       "anchor_y,y", po::value<int>(&cy)->default_value(0), "anchor point y")(
       "anchor_x,x", po::value<int>(&cx)->default_value(0),
       "anchor point x")("apply_global,g", po::bool_switch(&apply_global),
-                        "apply optimization globally");
+                        "apply optimization globally")(
+      "focal_scalar,s", po::value<float>(&focal_scalar)->default_value(0.0f),
+      "manually adjust focal scalar");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -183,7 +189,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  auto return_status = pshyco(file_path, csv_name, mode, cy, cx);
+  auto return_status = pshyco(file_path, csv_name, mode, cy, cx, focal_scalar);
 
   if (return_status == ReturnStatus::ERROR) {
     fs::path fs_file_path(file_path);

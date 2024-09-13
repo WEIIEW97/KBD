@@ -34,15 +34,15 @@ else()
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-add_executable(${PROJECT_NAME} 
-        main.cpp
-        ${sources}
-)
+        add_executable(${PROJECT_NAME} 
+                main.cpp
+                ${sources}
+        )
 else()
-add_executable(${PROJECT_NAME} 
-       main_debug.cpp
-        ${sources}
-)
+        add_executable(${PROJECT_NAME} 
+        main_debug.cpp
+                ${sources}
+        )
 endif()
 
 target_include_directories(
