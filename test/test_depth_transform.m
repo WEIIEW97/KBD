@@ -4,17 +4,17 @@ function  test_depth_transform()
 h=480;
 w=640;
 
-after_path = "D:\william\data\KBD\fuck\second\image_data\500_N9LAZG24GN0130_2024_08_09_16_50_36\DEPTH\raw\Depth-2024-08-09-16-50-36-959-1-003724-1723193436629501.raw";
-before_path = "D:\william\data\KBD\fuck\first\image_data\500_N9LAZG24GN0130_2024_08_09_14_01_39\DEPTH\raw\Depth-2024-08-09-14-01-40-056-1-000556-41179234.raw";
+after_path = "D:\william\data\KBD\Z06FLAZG24GN0347\image_data\1800_Z06FLAZG24GN0347_2024_09_30_15_24_23\DEPTH\raw\Depth-2024-09-30-15-24-23-872-2-002048-1727681063349692.raw";
+% before_path = "D:\william\data\KBD\fuck\first\image_data\500_N9LAZG24GN0130_2024_08_09_14_01_39\DEPTH\raw\Depth-2024-08-09-14-01-40-056-1-000556-41179234.raw";
 
-before = load_raw(before_path, h, w);
+% before = load_raw(before_path, h, w);
 after = load_raw(after_path, h, w);
 
-d = delta_diff(before, after);
+% d = delta_diff(before, after);
 
 % Display the images
 figure(1);
-imagesc(before, [400, 600]);
+imagesc(after, [1600, 2000]);
 colormap('default'); % You can choose any appropriate colormap
 colorbar;
 title('Before');

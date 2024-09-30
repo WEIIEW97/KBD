@@ -120,7 +120,8 @@ namespace kbd {
           auto valid_raw =
               raw.block(anchor_point[0] - 25, anchor_point[1] - 25, 50, 50);
 
-          double mu = calculate_mean(valid_raw);
+          // double mu = calculate_mean(valid_raw);
+          double mu = calculate_mean_nonzero(valid_raw);
           mean_dist_holder.push_back(mu);
         }
       }

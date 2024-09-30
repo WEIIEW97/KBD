@@ -92,7 +92,21 @@ namespace kbd {
 
   template <typename T, int Rows, int Cols>
   double calculate_mean(const Eigen::Block<T, Rows, Cols>& matrix) {
+    /// this would make zero value pixel into calculation
     return matrix.template cast<double>().mean();
+  }
+
+  template <typename T, int Rows, int Cols>
+  double calculate_mean_nonzero(const Eigen::Block<T, Rows, Cols>& matrix) {
+    // Use the derived matrix as an Array for element-wise operations
+    Eigen::MatrixXd m;
+    m = matrix.template cast<double>();
+    auto mask = m.array() != 0;
+    double sum = m.sum();
+
+    int count = static_cast<int>(mask.count());
+
+    return count > 0 ? sum / count : 0; // Prevent division by zero
   }
 
   template <typename Derived>

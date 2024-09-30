@@ -26,7 +26,7 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     compensate_dist = 400
     scaling_factor = 10
-    root_dir = "D:/william/data/KBD/0913-2"
+    root_dir = r"D:\william\data\KBD"
     # camera_types = [
     #     f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     # ]
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         N = len(camera_types)
         p = 0
         for camera_type in camera_types:
-            if camera_type != "Z06FLAZG24GN0302":
+            if camera_type != "Z06FLAZG24GN0347":
                 continue
             print(f"begin to process {camera_type}")
             base_path = os.path.join(root_dir, camera_type)

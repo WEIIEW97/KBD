@@ -62,14 +62,14 @@ def verify_cpp(
 
 
 if __name__ == "__main__":
-    root_dir = "D:/william/data/KBD/0913-2"
+    root_dir = r"D:\william\data\KBD"
     camera_types = [
         f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))
     ]
     sf = 10
     for camera_type in camera_types:
         print(f"processing {camera_type} ...")
-        if camera_type != "Z06FLAZG24GN0302":
+        if camera_type != "Z06FLAZG24GN0347":
             continue
         base_path = os.path.join(root_dir, camera_type)
         fig_path = os.path.join(base_path, "cpp_verify")

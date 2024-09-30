@@ -41,6 +41,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 else()
         add_executable(${PROJECT_NAME} 
         main_debug.cpp
+        # test/test_main.cpp
                 ${sources}
         )
 endif()
