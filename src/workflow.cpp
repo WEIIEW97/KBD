@@ -17,9 +17,11 @@
 #include "workflow.h"
 
 #include "utils.h"
-#include "format.h"
+#include "eigen_format.h"
 #include "ops/modifier.h"
 #include <arrow/api.h>
+#include <fmt/ranges.h>
+#include <fmt/core.h>
 #include <arrow/compute/api.h>
 #include <cfloat>
 #include <unordered_map>

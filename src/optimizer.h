@@ -18,7 +18,7 @@
 #include "model.h"
 #include "eigen_utils.h"
 #include "linear_reg.h"
-#include "format.h"
+#include "eigen_format.h"
 #include "nelder_mead.h"
 
 #include <ceres/ceres.h>
