@@ -3,6 +3,9 @@ project(kbd)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(MSVC)
+set(GFLAGS_USE_TARGET_NAMESPACE ON) # for unknown reason have to add this shit
+endif()
 
 file(GLOB_RECURSE sources ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 file(GLOB_RECURSE headers ${CMAKE_CURRENT_LIST_DIR}/src/*.h)
